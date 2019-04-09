@@ -1,0 +1,4 @@
+# IntelliJ project files
+.idea
+# 3rd-party modules
+node_modules

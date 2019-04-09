@@ -1,0 +1,36 @@
+{
+  "name": "@keleran/orm",
+  "version": "1.0.0",
+  "description": "A basic PostgreSQL ORM for Node.js",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "env PGDATABASE=orm PGUSER=orm PGPASSWORD=orm mocha --require=intelli-espower-loader test/*.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dchekanov/orm.git"
+  },
+  "author": {
+    "name": "Dmitry Chekanov",
+    "email": "d.chekanov@gmail.com",
+    "url": "http://dmitrychekanov.com/"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/dchekanov/orm/issues"
+  },
+  "homepage": "https://github.com/dchekanov/orm#readme",
+  "dependencies": {
+    "lodash": "^4.17.11",
+    "mongo-sql": "^6.2.0",
+    "pg": "^7.9.0"
+  },
+  "devDependencies": {
+    "intelli-espower-loader": "^1.0.1",
+    "mocha": "^6.1.2",
+    "power-assert": "^1.6.1"
+  }
+}

@@ -1,7 +1,10 @@
 {
   "name": "@keleran/orm",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A basic PostgreSQL ORM for Node.js",
+  "files": [
+    "index.js", "lib"
+  ],
   "main": "index.js",
   "directories": {
     "lib": "lib"

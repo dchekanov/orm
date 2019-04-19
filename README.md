@@ -109,6 +109,7 @@ orm.setup({modulesDir: './models'}).then(async () => {
   console.log(firstPerson); // { "id": 2, "name": "Emma", "createdAt": Date }
 
   // use "extend" option to attach referenced models (only works for fields with "_id" suffix referencing "id" property)
+  // deep extending is possible using "hat.brand" syntax.
   const john = await Person.findOne({name: 'John'}, {extend: 'hat'});
 
   console.log(john); // { id: 1, name: 'John', hatId: 1, createdAt: Date, hat: { id: 1, color: 'blue', createdAt: Date } }

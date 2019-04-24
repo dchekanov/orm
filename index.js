@@ -39,6 +39,8 @@ module.exports = {
 
       const ReferencedModel = this.models[referenced[0]];
 
+      if (!Model.extenders) Model.extenders = {};
+
       Model.extenders[property] = (instances = [], options = {}) => {
         if (instances.length === 0) return Promise.resolve();
 

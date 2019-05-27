@@ -7,14 +7,15 @@ describe('ORM', function() {
   });
 
   afterEach(async function() {
-    const {Hat, Person} = orm.models;
+    const {Hat, Person, Style} = orm.models;
 
     await Person.delete();
     await Hat.delete();
+    await Style.delete();
   });
 
   it('should read model definitions', function() {
-    assert(Object.keys(orm.models).length === 2);
+    assert(Object.keys(orm.models).length === 3);
     assert('Person' in orm.models);
     assert('Hat' in orm.models);
   });
@@ -54,5 +55,37 @@ describe('ORM', function() {
     const person = await Person.findOne({name: 'John'}, {extend: 'hat'});
 
     assert(person.hat.color === 'blue');
+  });
+
+  it('should add "isReferenced" extender', async function() {
+    const {Hat, Person, Style} = orm.models;
+
+    // not referenced
+    const personA = await new Person({name: 'John'}).save();
+
+    assert((await Person.findById(personA.id, {extend: 'isReferenced'})).isReferenced === false);
+
+    // now referenced in the style
+    const styleA = await new Style({name: 'fancy', createdBy: personA.id}).save();
+
+    assert((await Person.findById(personA.id, {extend: 'isReferenced'})).isReferenced === true);
+
+    // no longer referenced after deleting the style
+    await styleA.delete();
+
+    assert((await Person.findById(personA.id, {extend: 'isReferenced'})).isReferenced === false);
+
+    const personB = await new Person({name: 'Mike'}).save();
+    const styleB = await new Style({name: 'shmancy'}).save();
+
+    // multiple references in a custom table
+    await orm.db.query(
+      `INSERT INTO person_style (person_id, style_id, created_by) VALUES ($1, $2, $3)`,
+      [personB.id, styleB.id, personA.id]
+    );
+
+    assert((await Person.findById(personB.id, {extend: 'isReferenced'})).isReferenced === true);
+    assert((await Style.findById(styleB.id, {extend: 'isReferenced'})).isReferenced === true);
+    assert((await Person.findById(personA.id, {extend: 'isReferenced'})).isReferenced === true);
   });
 });

@@ -14,8 +14,8 @@ module.exports = {
    * @param {Object} Model
    * @returns {Promise}
    */
-  discoverExtenders(Model) {
-    if (!Model.columns.some(column => column.endsWith('_id'))) return;
+  addIdExtenders(Model) {
+    if (!Model.columns.some(column => column.endsWith('_id'))) return Promise.resolve();
 
     const query = `
       SELECT
@@ -59,6 +59,61 @@ module.exports = {
     }
 
     return this.db.query(query, {log: false}).then(r => r.rows.forEach(parseRow.bind(this)));
+  },
+  /**
+   * Add "isReferenced" extender to the model.
+   * @param {Object} Model
+   * @returns {Promise}
+   */
+  addIsReferencedExtender(Model) {
+    if (Model.extenders && Model.extenders.isReferenced) return Promise.resolve();
+
+    const query = `
+      SELECT
+        kcu.table_name,
+        kcu.column_name
+      FROM
+        information_schema.table_constraints AS tc
+        JOIN information_schema.key_column_usage AS kcu ON tc.constraint_name = kcu.constraint_name
+        JOIN information_schema.constraint_column_usage AS ccu ON ccu.constraint_name = tc.constraint_name
+      WHERE
+        tc.constraint_type = 'FOREIGN KEY'
+        AND ccu.column_name = 'id'
+        AND ccu.table_name = '${Model.table}'
+    `;
+
+    return this.db.query(query, {log: false}).then(r => {
+      const references = {};
+
+      r.rows.forEach(row => {
+        if (!references[row.table_name]) references[row.table_name] = [];
+
+        references[row.table_name].push(row.column_name);
+      });
+
+      if (!Model.extenders) Model.extenders = {};
+
+      Model.extenders.isReferenced = (instances = [], options = {}) => {
+        if (instances.length === 0) return Promise.resolve();
+
+        const ids = _.chain(instances).map('id').uniq().filter(_.identity).value();
+        const tables = Object.keys(references);
+
+        const queries = [];
+
+        tables.forEach(table => {
+          references[table].forEach(column => {
+            queries.push(`SELECT ${column} AS referenced_id FROM ${table} WHERE ${column} = ANY($1)`);
+          });
+        });
+
+        return this.db.query(queries.join(' UNION '), [ids], options).then(r => {
+          const referencedIds = r.rows.map(row => row.referenced_id);
+
+          instances.forEach(instance => instance.isReferenced = referencedIds.includes(instance.id));
+        });
+      };
+    });
   },
   /**
    * End the default pool and all custom pools used by the models.
@@ -107,7 +162,9 @@ module.exports = {
       const columnsRefreshed = Object.entries(this.models).map(([, Model]) => Model.refreshColumns());
 
       return Promise.all(columnsRefreshed).then(() => {
-        const extendersDiscovered = Object.entries(this.models).map(([, Model]) => this.discoverExtenders(Model));
+        const extendersDiscovered = Object.entries(this.models).map(([, Model]) => {
+          return Promise.all([this.addIdExtenders(Model), this.addIsReferencedExtender(Model)]);
+        });
 
         return Promise.all(extendersDiscovered);
       });

@@ -1,9 +1,10 @@
 {
   "name": "@keleran/orm",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "A basic PostgreSQL ORM for Node.js",
   "files": [
-    "index.js", "lib"
+    "index.js",
+    "lib"
   ],
   "main": "index.js",
   "directories": {
@@ -29,11 +30,11 @@
   "dependencies": {
     "lodash": "^4.17.11",
     "mongo-sql": "^6.2.0",
-    "pg": "^7.9.0"
+    "pg": "^7.11.0"
   },
   "devDependencies": {
     "intelli-espower-loader": "^1.0.1",
-    "mocha": "^6.1.2",
+    "mocha": "^6.1.4",
     "power-assert": "^1.6.1"
   }
 }

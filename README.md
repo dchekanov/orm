@@ -20,6 +20,19 @@ CREATE TABLE persons (
   hat_id int REFERENCES hats,
   created_at timestamptz
 );
+
+CREATE TABLE styles (
+  id serial PRIMARY KEY,
+  name text,
+  created_at timestamptz,
+  created_by int REFERENCES persons ON DELETE CASCADE
+);
+
+CREATE TABLE person_style (
+  person_id int NOT NULL REFERENCES persons ON DELETE CASCADE,
+  style_id int NOT NULL REFERENCES styles ON DELETE CASCADE,
+  created_by int REFERENCES persons ON DELETE CASCADE
+);
 ```
 
 Install the module: 

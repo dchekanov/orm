@@ -71,6 +71,7 @@ module.exports = {
     const query = `
       SELECT
         kcu.table_name,
+        kcu.table_schema,
         kcu.column_name
       FROM
         information_schema.table_constraints AS tc

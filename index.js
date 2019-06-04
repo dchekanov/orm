@@ -86,9 +86,11 @@ module.exports = {
       const references = {};
 
       r.rows.forEach(row => {
-        if (!references[row.table_name]) references[row.table_name] = [];
+        const table = `${row.table_schema}.${row.table_name}`;
 
-        references[row.table_name].push(row.column_name);
+        if (!references[table]) references[table] = [];
+
+        references[table].push(row.column_name);
       });
 
       if (!Model.extenders) Model.extenders = {};

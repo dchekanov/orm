@@ -1,6 +1,6 @@
 {
   "name": "@keleran/orm",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "A basic PostgreSQL ORM for Node.js",
   "files": [
     "index.js",
@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/dchekanov/orm#readme",
   "dependencies": {
-    "lodash": "^4.17.11",
+    "lodash": "^4.17.14",
     "mongo-sql": "^6.2.0",
     "pg": "^7.11.0"
   },

@@ -66,8 +66,6 @@ module.exports = {
    * @returns {Promise}
    */
   addIsReferencedExtender(Model) {
-    if (Model.extenders && Model.extenders.isReferenced) return Promise.resolve();
-
     const query = `
       SELECT
         kcu.table_name,
@@ -162,7 +160,7 @@ module.exports = {
 
         this.models[modelName] = Model;
       });
-      
+
       const columnsRefreshed = Object.entries(this.models).map(([, Model]) => Model.refreshColumns());
 
       return Promise.all(columnsRefreshed).then(() => {

@@ -6,8 +6,7 @@ Create a DB, setup access permissions, set [PostgreSQL env. variables](https://w
 
 Create a table:
 
-```
-// SQL
+```sql
 CREATE TABLE hats (
   id serial PRIMARY KEY,
   color text,
@@ -117,32 +116,32 @@ orm.setup({modulesDir: './models'}).then(async () => {
   console.log(count); // 2
 
   // use .find(q, o), .findOne(q, o), findById(id, o) to search
-  const firstPerson = await Person.findOne({}, {order: {name: 'asc'}});
+  const firstPerson = await Person.findOne({order: {name: 'asc'}});
 
   console.log(firstPerson); // { "id": 2, "name": "Emma", "createdAt": Date }
 
   // use "extend" option to attach referenced models (only works for fields with "_id" suffix referencing "id" property)
   // deep extending is possible using "hat.brand" syntax.
-  const john = await Person.findOne({name: 'John'}, {extend: 'hat'});
+  const john = await Person.findOne({where: {name: 'John'}}, {extend: 'hat'});
 
   console.log(john); // { id: 1, name: 'John', hatId: 1, createdAt: Date, hat: { id: 1, color: 'blue', createdAt: Date } }
   console.log(john.describeHat()); // John has a blue hat.
   
-  // use .update(query, update, options) to update records
+  // use .update(querySpec, execOpts) to update records
   // per-instance: model.set({k: v}).save();
-  await Person.update({name: 'Emma'}, {hatId: redHat.id});
+  await Person.update({where: {name: 'Emma'}, values: {hatId: redHat.id}});
   
   // use orm.db.transact(function, context object) for transactions
   try {
-    await orm.db.transact(async ctx =>  {
-      await Person.update({name: 'Emma'}, {hatId: blueHat.id}, ctx);
+    await orm.db.transact(async execOpts =>  {
+      await Person.update({where: {name: 'Emma'}, values: {hatId: blueHat.id}}, execOpts);
       throw new Error('INTENTIONAL');
     }, {});
   } catch (err) {
     if (err.message !== 'INTENTIONAL') throw err;
   }
   
-  const emma = await Person.findOne({name: 'Emma'}, {extend: 'hat'});
+  const emma = await Person.findOne({where: {name: 'Emma'}}, {extend: 'hat'});
   
   console.log(emma.hat.color); // red, because transaction failed
 

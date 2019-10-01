@@ -32,7 +32,7 @@ describe('ORM', function() {
     const {Hat} = orm.models;
 
     await new Hat({color: 'blue'}).save();
-    await Hat.update({color: 'blue'}, {color: 'yellow'});
+    await Hat.update({where: {color: 'blue'}, values: {color: 'yellow'}});
 
     assert(await Hat.count({color: 'yellow'}) === 1);
   });
@@ -41,7 +41,7 @@ describe('ORM', function() {
     const {Hat} = orm.models;
 
     await new Hat({color: 'blue'}).save();
-    await Hat.delete({color: 'blue'});
+    await Hat.delete({where: {color: 'blue'}});
 
     assert(await Hat.count() === 0);
   });
@@ -52,7 +52,7 @@ describe('ORM', function() {
     const hat = await new Hat({color: 'blue'}).save();
     await new Person({name: 'John', hatId: hat.id}).save();
 
-    const person = await Person.findOne({name: 'John'}, {extend: 'hat'});
+    const person = await Person.findOne({where: {name: 'John'}}, {extend: 'hat'});
 
     assert(person.hat.color === 'blue');
   });

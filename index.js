@@ -137,18 +137,19 @@ module.exports = {
    * @param {string} modulesDir - Where model files are located.
    * @param {Object} [logger] - Log non-critical errors via .error(), queries via .logQueryStart(), .logQueryEnd().
    * @param {Function} [generateId] - Used to create row ids.
+   * @throws {TypeError}
    * @returns {Promise}
    */
   setup({modulesDir, generateId, logger} = {}) {
     if (typeof logger !== 'undefined') this.defaultPool.logger = this.db.logger = logger;
 
     if (typeof generateId !== 'undefined') {
-      if (typeof generateId !== 'function') return Promise.reject(new Error('GENERATEID_NOT_A_FUNCTION'));
+      if (typeof generateId !== 'function') throw new TypeError('generateId parameter is not a function');
 
       this.Model.prototype.generateId = generateId;
     }
 
-    if (typeof modulesDir !== 'string') return Promise.reject(new Error('MODULESDIR_NOT_A_STRING'));
+    if (typeof modulesDir !== 'string') throw new TypeError('modulesDir parameter is not a string');
 
     modulesDir = path.resolve(modulesDir);
 
@@ -161,7 +162,7 @@ module.exports = {
 
         this.models[modelName] = Model;
       });
-
+      
       const columnsRefreshed = Object.entries(this.models).map(([, Model]) => Model.refreshColumns());
 
       return Promise.all(columnsRefreshed).then(() => {

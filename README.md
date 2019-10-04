@@ -53,14 +53,16 @@ touch models/hat.js
 const {Model} = require('@keleran/orm');
 
 class Person extends Model {
+  // the table to store instance records must be provided 
+  static get table() {
+    return 'persons';
+  }
+
   // models are regular JS classes and can have custom static and instance methods
   describeHat() {
     return `${this.name} has a ${this.hat.color} hat.`;
   }
 }
-
-// the table to store instance records must be provided 
-Person.table = 'persons';
 
 module.exports = Person;
 ```
@@ -70,10 +72,10 @@ module.exports = Person;
 const {Model} = require('@keleran/orm');
 
 class Hat extends Model {
-  
+  static get table() {
+    return 'hats';
+  }
 }
-
-Hat.table = 'hats';
 
 module.exports = Hat;
 ```

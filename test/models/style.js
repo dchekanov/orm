@@ -1,9 +1,9 @@
 const {Model} = require('../../index');
 
 class Style extends Model {
-
+  static get table() {
+    return 'styles';
+  }
 }
-
-Style.table = 'styles';
 
 module.exports = Style;

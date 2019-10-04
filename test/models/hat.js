@@ -1,9 +1,9 @@
 const {Model} = require('../../index');
 
 class Hat extends Model {
-
+  static get table() {
+    return 'hats';
+  }
 }
-
-Hat.table = 'hats';
 
 module.exports = Hat;

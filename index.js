@@ -33,12 +33,9 @@ module.exports = {
 
     function parseRow(row) {
       const property = _.camelCase(row.column_name.replace(/_id$/, ''));
-      const referenced = Object.entries(this.models).find(([, Model]) => Model.table === row.foreign_table_name);
+      const ReferencedModel = Object.values(this.models).find(Model => Model.table === row.foreign_table_name);
 
-      if (!referenced) return;
-
-      const ReferencedModel = this.models[referenced[0]];
-
+      if (!ReferencedModel) return;
       if (!Model.extenders) Model.extenders = {};
 
       Model.extenders[property] = (instances = [], options = {}) => {
@@ -124,7 +121,7 @@ module.exports = {
   endPools() {
     const ended = [this.defaultPool.end()];
 
-    Object.entries(this.models).forEach(([, Model]) => {
+    Object.values(this.models).forEach(Model => {
       if (Model.pool !== this.defaultPool) ended.push(Model.pool.end());
     });
 
@@ -161,10 +158,10 @@ module.exports = {
         this.models[modelName] = Model;
       });
 
-      const columnsRefreshed = Object.entries(this.models).map(([, Model]) => Model.refreshColumns());
+      const columnsRefreshed = Object.values(this.models).map(Model => Model.refreshColumns());
 
       return Promise.all(columnsRefreshed).then(() => {
-        const extendersDiscovered = Object.entries(this.models).map(([, Model]) => {
+        const extendersDiscovered = Object.values(this.models).map(Model => {
           return Promise.all([this.addIdExtenders(Model), this.addIsReferencedExtender(Model)]);
         });
 

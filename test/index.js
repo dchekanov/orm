@@ -6,6 +6,10 @@ describe('ORM', function() {
     await orm.setup({modulesDir: 'test/models'});
   });
 
+  after(function() {
+    return orm.endPools();
+  });
+
   afterEach(async function() {
     const {Hat, Person, Style} = orm.models;
 

@@ -136,7 +136,7 @@ module.exports = {
    * @returns {Promise}
    */
   setup({modulesDir, generateId, logger} = {}) {
-    this.defaultPool.reset();
+    if (this.defaultPool.current.ended) this.defaultPool.reset();
 
     if (typeof logger !== 'undefined') this.defaultPool.current.logger = this.db.logger = logger;
 

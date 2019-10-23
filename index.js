@@ -119,10 +119,10 @@ module.exports = {
    * @returns {Promise}
    */
   endPools() {
-    const ended = [this.defaultPool.end()];
+    const ended = [this.defaultPool.current.end()];
 
     Object.values(this.models).forEach(Model => {
-      if (Model.pool !== this.defaultPool) ended.push(Model.pool.end());
+      if (Model.pool !== this.defaultPool.current) ended.push(Model.pool.end());
     });
 
     return Promise.all(ended);
@@ -136,7 +136,9 @@ module.exports = {
    * @returns {Promise}
    */
   setup({modulesDir, generateId, logger} = {}) {
-    if (typeof logger !== 'undefined') this.defaultPool.logger = this.db.logger = logger;
+    this.defaultPool.reset();
+
+    if (typeof logger !== 'undefined') this.defaultPool.current.logger = this.db.logger = logger;
 
     if (typeof generateId !== 'undefined') {
       if (typeof generateId !== 'function') throw new TypeError('generateId parameter is not a function');

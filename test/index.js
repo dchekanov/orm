@@ -92,4 +92,14 @@ describe('ORM', function() {
     assert((await Style.findById(styleB.id, {extend: 'isReferenced'})).isReferenced === true);
     assert((await Person.findById(personA.id, {extend: 'isReferenced'})).isReferenced === true);
   });
+
+  it('should allow to reset the default pool', async function() {
+    const oldPool = orm.defaultPool.current;
+
+    orm.defaultPool.reset();
+
+    const newPool = orm.defaultPool.current;
+
+    assert(oldPool !== newPool);
+  });
 });

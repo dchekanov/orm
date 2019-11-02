@@ -3,7 +3,7 @@ const orm = require('../index');
 
 describe('ORM', function() {
   before(async function() {
-    await orm.setup({modulesDir: 'test/models'});
+    await orm.setup({modulesDir: 'test/models', defaultPoolMaxConnections: 5});
   });
 
   after(function() {
@@ -94,12 +94,16 @@ describe('ORM', function() {
   });
 
   it('should allow to reset the default pool', async function() {
-    const oldPool = orm.defaultPool.current;
+    const oldPool = orm.defaultPool;
 
     orm.defaultPool.reset();
 
-    const newPool = orm.defaultPool.current;
+    const newPool = orm.defaultPool;
 
     assert(oldPool !== newPool);
+  });
+
+  it('should allow to specify the max connection limit for the default pool', function() {
+    assert(orm.defaultPool.options.max === 5);
   });
 });

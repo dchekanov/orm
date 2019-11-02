@@ -92,6 +92,7 @@ const orm = require('@keleran/orm');
 
 // Init ORM, tell it where to fetch model definitions from
 // generateId option can be provided to generate ids in the app (example: shortid.generate)
+// supply defaultPoolMaxConnections to specify the max connection limit for the default pool (defaults to 10)
 orm.setup({modulesDir: './models'}).then(async () => {
   // discovered modules can be accessed via orm.models
   const {Hat, Person} = orm.models;

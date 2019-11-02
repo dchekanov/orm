@@ -2,11 +2,12 @@ const _ = require('lodash');
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
+const {Pool} = require('pg');
 
 module.exports = {
   convertKeys: require('./lib/convert-keys'),
   db: require('./lib/db'),
-  defaultPool: require('./lib/default-pool'),
+  logger: console,
   Model: require('./lib/model'),
   models: {},
   /**
@@ -119,26 +120,37 @@ module.exports = {
    * @returns {Promise}
    */
   endPools() {
-    const ended = [this.defaultPool.current.end()];
+    const ended = [this.defaultPool.end()];
 
     Object.values(this.models).forEach(Model => {
-      if (Model.pool !== this.defaultPool.current) ended.push(Model.pool.end());
+      if (!Model.pool.ended && !Model.pool.ending) ended.push(Model.pool.end());
     });
 
     return Promise.all(ended);
+  },
+  /**
+   *
+   * @param {number} maxConnections - The maximum number of clients the default pool should contain.
+   */
+  resetDefaultPool({maxConnections}) {
+    if (this.defaultPool) this.defaultPool.end().catch(err => this.logger.error(err));
+    this.defaultPool = this.db.defaultPool = new Pool({max: maxConnections});
+    this.defaultPool.reset = () => this.resetDefaultPool({maxConnections});
+    this.defaultPool.on('error', err => this.logger.error(err));
   },
   /**
    * Init ORM.
    * @param {string} modulesDir - Where model files are located.
    * @param {Object} [logger] - Log non-critical errors via .error(), queries via .logQueryStart(), .logQueryEnd().
    * @param {Function} [generateId] - Used to create row ids.
+   * @param {number} defaultPoolMaxConnections - The maximum number of clients the default pool should contain.
    * @throws {TypeError}
    * @returns {Promise}
    */
-  setup({modulesDir, generateId, logger} = {}) {
-    if (this.defaultPool.current.ended) this.defaultPool.reset();
+  setup({modulesDir, generateId, logger, defaultPoolMaxConnections} = {}) {
+    if (typeof logger !== 'undefined') this.logger = this.db.logger = logger;
 
-    if (typeof logger !== 'undefined') this.defaultPool.current.logger = this.db.logger = logger;
+    this.resetDefaultPool({maxConnections: defaultPoolMaxConnections});
 
     if (typeof generateId !== 'undefined') {
       if (typeof generateId !== 'function') throw new TypeError('generateId parameter is not a function');
@@ -156,6 +168,7 @@ module.exports = {
         const Model = require(path.join(modulesDir, fileName));
 
         if (!(Model.prototype instanceof this.Model)) throw new Error('MODEL_INVALID');
+        if (!Model.pool) Model.pool = this.defaultPool;
 
         this.models[modelName] = Model;
       });

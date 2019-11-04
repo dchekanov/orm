@@ -1,6 +1,6 @@
 {
   "name": "@keleran/orm",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "description": "A basic PostgreSQL ORM for Node.js",
   "files": [
     "index.js",

@@ -133,7 +133,10 @@ module.exports = {
    * @param {number} maxConnections - The maximum number of clients the default pool should contain.
    */
   resetDefaultPool({maxConnections}) {
-    if (this.defaultPool) this.defaultPool.end().catch(err => this.logger.error(err));
+    if (this.defaultPool && !this.defaultPool.ended && !this.defaultPool.ending) {
+      this.defaultPool.end().catch(err => this.logger.error(err));
+    }
+
     this.defaultPool = this.db.defaultPool = new Pool({max: maxConnections});
     this.defaultPool.reset = () => this.resetDefaultPool({maxConnections});
     this.defaultPool.on('error', err => this.logger.error(err));

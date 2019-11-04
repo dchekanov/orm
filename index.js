@@ -143,7 +143,7 @@ module.exports = {
    * @param {string} modulesDir - Where model files are located.
    * @param {Object} [logger] - Log non-critical errors via .error(), queries via .logQueryStart(), .logQueryEnd().
    * @param {Function} [generateId] - Used to create row ids.
-   * @param {number} defaultPoolMaxConnections - The maximum number of clients the default pool should contain.
+   * @param {number} [defaultPoolMaxConnections] - The maximum number of clients the default pool should contain.
    * @throws {TypeError}
    * @returns {Promise}
    */

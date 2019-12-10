@@ -1,6 +1,6 @@
 name: Test
 on: push
-env: 
+env:
   PGDATABASE: orm
   PGUSER: orm
   PGPASSWORD: orm
@@ -26,17 +26,33 @@ jobs:
         postgresql db: orm
         postgresql user: orm
         postgresql password: orm
-    - name: npm install
-      run: npm ci
-    - name: npm test
-      if: matrix.node != 12 && matrix.pg != 10
-      run: npm test
-    - name: npm coverage
-      if: matrix.node == 12 && matrix.pg == 10
-      run: npm run coverage
-    - name: SonarCloud scan
-      if: matrix.node == 12 && matrix.pg == 10
-      uses: sonarsource/sonarcloud-github-action@master
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    - name: npm install and test
+      run: |
+        npm ci
+        npm test
+  sonar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+      - name: Use Node.js 12
+        uses: actions/setup-node@v1
+        with:
+          node-version: 12
+      - name: Setup PostgreSQL
+        uses: Harmon758/postgresql-action@v1.0.0
+        with:
+          postgresql version: 10
+          postgresql db: orm
+          postgresql user: orm
+          postgresql password: orm
+      - name: npm install and coverage
+        run: |
+          npm ci
+          npm run coverage
+      - name: SonarCloud scan
+        uses: sonarsource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

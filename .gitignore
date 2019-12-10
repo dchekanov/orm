@@ -6,6 +6,7 @@ node_modules
 
 # SonarQube
 .scannerwork
+sonar-project.properties
 
 # test settings, coverage and temp data
 test/.env

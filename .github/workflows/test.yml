@@ -1,0 +1,38 @@
+name: Test
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [8, 10, 12]
+        pg: [9, 10, 11, 12]
+    steps:
+    - uses: actions/checkout@v1
+      with:
+        fetch-depth: 1
+    - name: Use Node.js ${{ matrix.node }}
+      uses: actions/setup-node@v1
+      with:
+        node-version: ${{ matrix.node }}
+    - name: Setup PostgreSQL
+      uses: Harmon758/postgresql-action@v1.0.0
+      with:
+        postgresql version: ${{ matrix.pg }}
+        postgresql db: orm
+        postgresql user: orm
+        postgresql password: orm
+    - name: npm install and test
+      env: 
+        PGDATABASE: orm
+        PGUSER: orm
+        PGPASSWORD: orm
+      run: |
+        npm ci
+        npm test
+    - name: SonarCloud scan
+      if: matrix.node == 12 && matrix.pg == 10
+      uses: sonarsource/sonarcloud-github-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

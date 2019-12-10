@@ -41,7 +41,8 @@ class User extends Model {
 
 const linkModels = require('../lib/link-models');
 
-after(function() {
+after(async function() {
+  await pool.query('DROP TABLE users, hats');
   pool.end();
 });
 
@@ -259,23 +260,27 @@ describe('lib/db', function() {
       db.exec(statement, execOpts).catch(done);
     });
 
-    it('should support (spec, execOpts) signature', function(done) {
+    it('should support (spec, execOpts) signature', async function() {
+      await resetDb();
+
       const spec = {type: 'select', table: 'hats', where: {color: 'black'}};
       const execOpts = {log: false};
       const convertedSpec = db.convertSpec(spec);
 
-      db.on('execFinish', function(data) {
-        if (data.err) {
-          return;
-        }
+      await new Promise((resolve, reject) => {
+        db.on('execFinish', function(data) {
+          if (data.err) {
+            return;
+          }
 
-        assert(data.statement === convertedSpec.statement);
-        assert(_.isEqual(data.values, convertedSpec.values));
-        assert(data.execOpts === execOpts);
-        done();
+          assert(data.statement === convertedSpec.statement);
+          assert(_.isEqual(data.values, convertedSpec.values));
+          assert(data.execOpts === execOpts);
+          resolve();
+        });
+
+        db.exec(spec, execOpts).catch(reject);
       });
-
-      db.exec(spec, execOpts).catch(done);
     });
   });
 
@@ -396,13 +401,21 @@ describe('lib/model', function() {
       assert.throws(() => Test.exec({type: 'select'}), {name: 'Error', code: 'TABLE_MISSING'});
     });
 
-    it('should call db.exec with spec modified to point to model table', function(done) {
-      Hat.db.on('execFinish', function(data) {
-        assert(data.spec.table === Hat.table);
-        done();
-      });
+    it('should call db.exec with spec modified to point to model table', async function() {
+      await resetDb();
 
-      Hat.exec({type: 'select'}).catch(done);
+      await new Promise((resolve, reject) => {
+        Hat.db.on('execFinish', function(data) {
+          if (data.err) {
+            return;
+          }
+
+          assert(data.spec.table === Hat.table);
+          resolve();
+        });
+
+        Hat.exec({type: 'select'}).catch(reject);
+      });
     });
   });
 

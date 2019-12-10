@@ -1,5 +1,9 @@
 name: Test
 on: push
+env: 
+  PGDATABASE: orm
+  PGUSER: orm
+  PGPASSWORD: orm
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -22,14 +26,14 @@ jobs:
         postgresql db: orm
         postgresql user: orm
         postgresql password: orm
-    - name: npm install and test
-      env: 
-        PGDATABASE: orm
-        PGUSER: orm
-        PGPASSWORD: orm
-      run: |
-        npm ci
-        npm test
+    - name: npm install
+      run: npm ci
+    - name: npm test
+      if: matrix.node != 12 && matrix.pg != 10
+      run: npm test
+    - name: npm coverage
+      if: matrix.node == 12 && matrix.pg == 10
+      run: npm run coverage
     - name: SonarCloud scan
       if: matrix.node == 12 && matrix.pg == 10
       uses: sonarsource/sonarcloud-github-action@master

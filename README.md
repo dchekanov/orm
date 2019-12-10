@@ -1,168 +1,240 @@
-This ORM was created to simplify migration from MongoDB+mongoose to PostgreSQL. 
+# @keleran/orm
 
-# Usage mini-guide 
+Classes and utilities that help implementing a PostgreSQL ORM in Node.js projects.
 
-Create a DB, setup access permissions, set [PostgreSQL env. variables](https://www.postgresql.org/docs/10/libpq-envars.html).
+![Sonar Coverage](https://img.shields.io/sonar/coverage/dchekanov_orm?server=https%3A%2F%2Fsonarcloud.io&sonarVersion=8.0)
+![Libraries.io dependency status for latest release, scoped npm package](https://img.shields.io/librariesio/release/npm/@keleran/orm)
 
-Create a table:
-
-```sql
-CREATE TABLE hats (
-  id serial PRIMARY KEY,
-  color text,
-  created_at timestamptz
-);
-
-CREATE TABLE persons (
-  id serial PRIMARY KEY,
-  name text,
-  hat_id int REFERENCES hats,
-  created_at timestamptz
-);
-
-CREATE TABLE styles (
-  id serial PRIMARY KEY,
-  name text,
-  created_at timestamptz,
-  created_by int REFERENCES persons ON DELETE CASCADE
-);
-
-CREATE TABLE person_style (
-  person_id int NOT NULL REFERENCES persons ON DELETE CASCADE,
-  style_id int NOT NULL REFERENCES styles ON DELETE CASCADE,
-  created_by int REFERENCES persons ON DELETE CASCADE
-);
-```
-
-Install the module: 
+## Installation
 
 ```bash
-npm i @keleran/orm
-```
-
-Create models:
-
-```bash
-mkdir models
-touch models/person.js
-touch models/hat.js
+$ npm i @keleran/orm
 ```
 
 ```javascript
-// models/person.js
-const {Model} = require('@keleran/orm');
-
-class Person extends Model {
-  // the table to store instance records must be provided 
-  static get table() {
-    return 'persons';
-  }
-
-  // models are regular JS classes and can have custom static and instance methods
-  describeHat() {
-    return `${this.name} has a ${this.hat.color} hat.`;
-  }
-}
-
-module.exports = Person;
+const {Db, Model, linkModels} = require('@keleran/orm');
 ```
+
+## Db class
+
+Simplifies executing statements and performing transactions.  
+Uses [pg](https://node-postgres.com/) to talk to the DB.  
+Understands statements described in the [MoSQL](https://github.com/goodybag/mongo-sql) format.
+
+### constructor({pool, poolOptions})
 
 ```javascript
-// models/hat.js
-const {Model} = require('@keleran/orm');
-
-class Hat extends Model {
-  static get table() {
-    return 'hats';
-  }
-}
-
-module.exports = Hat;
+let db;
+// no options = a new pg.Pool with default options will be created
+db = new Db();
+// poolOptions to use instead of the default ones can be supplied 
+db = new Db({poolOptions: {max: 5}});
+// an existing pool can be supplied as well
+db = new Db({pool});
+// it's best to listen to db.pool's "error" event so that it doesn't crash the app
+db.pool.on('error', console.log);
+// call db.pool.end() during graceful shutdown
+db.pool.end().then(() => process.exit());
 ```
 
-Create a script:
-
-```bash
-touch index.js
-```
+### #exec(*) async
 
 ```javascript
-// index.js
-const orm = require('@keleran/orm');
+// statement as plain string
+db.exec('SELECT version()');
+// with parameters
+db.exec('INSERT INTO users (email) VALUES ($1)', ['test@example.com']);
+// statement in the MoSQL format
+// column names MUST be in snake_case
+// keys of "values", "where", and "order" objects and of their children will be converted to snake_case before executing 
+db.exec({type: 'select', table: 'users'});
+// an additional argument can be supplied to pass execution options
+// works with all signatures, must be added as the last argument
+// "client", "extend", and "op" are reserved for internal use, others can be supplied to implement custom functionality (see below)
+```
+Db instance emits "execFinish" event when #exec() finishes (either successfully or not). 
+This can be used for logging:
 
-// Init ORM, tell it where to fetch model definitions from
-// generateId option can be provided to generate ids in the app (example: shortid.generate)
-// supply defaultPoolMaxConnections to specify the max connection limit for the default pool (defaults to 10)
-orm.setup({modulesDir: './models'}).then(async () => {
-  // discovered modules can be accessed via orm.models
-  const {Hat, Person} = orm.models;
-
-  // create a new object instance using new Model(properties)
-  const blueHat = new Hat({color: 'blue'});
-  const redHat = new Hat({color: 'red'});
-
-  // use .save(context) to persist instance record in the DB
-  // context object must be passed in transactions (see below) 
-  await blueHat.save();
-  await redHat.save();
-
-  // objectKeys will be converted into row_keys automatically, and vice versa
-  // note that model.id is available only after saving, unless you provide generateId for the setup
-  await new Person({name: 'John', hatId: blueHat.id}).save();
-  await new Person({name: 'Emma'}).save();
-
-  // use .count(query, options, context) to get the number of records
-  // see mongo-sql's "where" helper for query syntax
-  // options can include any mongo-sql helpers + a special "extend" option (see below)
-  const count = await Person.count();
-
-  console.log(count); // 2
-
-  // use .find(q, o), .findOne(q, o), findById(id, o) to search
-  const firstPerson = await Person.findOne({order: {name: 'asc'}});
-
-  console.log(firstPerson); // { "id": 2, "name": "Emma", "createdAt": Date }
-
-  // use "extend" option to attach referenced models (only works for fields with "_id" suffix referencing "id" property)
-  // deep extending is possible using "hat.brand" syntax.
-  const john = await Person.findOne({where: {name: 'John'}}, {extend: 'hat'});
-
-  console.log(john); // { id: 1, name: 'John', hatId: 1, createdAt: Date, hat: { id: 1, color: 'blue', createdAt: Date } }
-  console.log(john.describeHat()); // John has a blue hat.
-  
-  // use .update(querySpec, execOpts) to update records
-  // per-instance: model.set({k: v}).save();
-  await Person.update({where: {name: 'Emma'}, values: {hatId: redHat.id}});
-  
-  // use orm.db.transact(function, context object) for transactions
-  try {
-    await orm.db.transact(async execOpts =>  {
-      await Person.update({where: {name: 'Emma'}, values: {hatId: blueHat.id}}, execOpts);
-      throw new Error('INTENTIONAL');
-    }, {});
-  } catch (err) {
-    if (err.message !== 'INTENTIONAL') throw err;
-  }
-  
-  const emma = await Person.findOne({where: {name: 'Emma'}}, {extend: 'hat'});
-  
-  console.log(emma.hat.color); // red, because transaction failed
-
-  // use orm.db.query to execute raw SQL
-  console.log((await orm.db.query('SELECT name FROM persons WHERE hat_id = $1', [redHat.id])).rows[0]); // { name: 'Emma' }
-
-  // use .delete(query) to remove records from the DB
-  // per-instance: model.delete();
-  await Person.delete();
-  await Hat.delete();
-
-  // call orm.endPools() to close all connections
-  orm.endPools(process.exit);
+```javascript
+db.on('execFinish', data => {
+  if (data.execOpts.log !== true) return;
+  // statement, values, result/err, and more 
+  console.log(data);
 });
+
+db.exec('SELECT version()', {log: true});
 ```
 
-Run it:
+### #transact(f, execOpts) async
 
-```bash
-$ node index
+```javascript
+// execute a function with multiple queries under a single transaction
+const execOpts = {log: false};
+
+db.transact(async trExecOpts => {
+  // trExecOpts = execOpts with "client" property added
+  // when "client" is set, db will use it instead of creating a new one
+  // all execs within a transaction MUST use trExecOpts for the transaction to work properly
+  await db.exec('INSERT INTO users (email) VALUES ($1)', ['test@example.com'], trExecOpts);
+  await db.exec('INSERT INTO users (email) VALUES ($1)', ['test@example.com'], trExecOpts);
+  // will be rolled back and no rows will be added if email is UNIQUE  
+}, execOpts);
 ```
+
+## Model class
+
+Model is an abstract class that should not be used directly.  
+Application models should extend it to gain ability to be saved, found, updated, counted, and deleted from the DB.  
+All methods that communicate with the DB MUST be supplied with MoSQL statement specs.  
+Methods automatically convert propertyNames to column_names when saving data and the other way around when fetching it.
+
+### Inheritance
+
+```javascript
+const db = new Db();
+
+class User extends Model {
+  // Db instance that stores model records MUST be defined
+  static get db() {
+    return db;
+  }
+  // The name of the table where model records are stored MUST be defined
+  static get table() {
+    return 'users';
+  }
+  // The function that should be used to generate instance id MUST be defined if DB doesn't assign it
+  static generateId() {
+    return nanoid;
+  }
+  // custom methods MUST accept and pass execOpts to DB methods for transactions to work properly  
+  static customMethod(params, execOpts) {
+    this.db.exec('...', execOpts);  
+  }
+}
+// extenders are functions that can add extra properties to instances
+// extension can be performed via .extend, #extend, or by supplying "extend" parameter in execOpts
+// if multi-level extension is supported by the extender, the hierarchy should be expressed as "parent.child.child"
+// extenders MUST NOT be defined as a static property if linkModels utility is used
+User.extenders = {
+  // can be an async function
+  // it MUST adjust supplied instances, it does not matter what it returns 
+  randomNumber: instances => instances.forEach(instance => instance.randomNumber = Math.random())
+};
+```
+
+### .refreshColumns() async
+
+Each model keeps a list of columns defined for the table so that #save() could build a correct statement.  
+.refreshColumns() is called automatically when #save() is called for the first time.  
+The method should be called manually after adjusting columns. 
+
+### .count(spec, execOpts) async
+
+```javascript
+// count instance records, returns an integer
+User.count({where: {email: {$notNull: true}}});
+```
+
+### .find(spec, execOpts) async
+
+```javascript
+// find instance records, returns an array of instances
+User.find({where: {email: {$notNull: true}}});
+```
+
+### .findOne(spec, execOpts) async
+
+```javascript
+// find instance records, returns the first match
+User.findOne({where: {email: {$notNull: true}}});
+```
+
+### .findById(id, execOpts) async
+
+```javascript
+// find instance record by id
+User.findById({where: {email: {$notNull: true}}});
+```
+
+### .update(spec, execOpts) async
+
+```javascript
+// update instance records
+User.update({where: {email: {$notNull: true}}}, {values: {email: null}});
+```
+
+### .delete(spec, execOpts) async
+
+```javascript
+// delete instance records
+User.delete({where: {email: {$notNull: true}}});
+```
+
+### .extend(instances, properties, execOpts) async
+
+```javascript
+// extend instance records
+User.extend(users, 'articles');
+// an array can be supplied to call multiple extenders
+User.extend(users, ['articles', 'comments']);
+```
+
+### constructor(properties)
+
+```javascript
+// create an instance, assigning supplied properties
+// if User.generateId is defined, user will have the "id" property set
+const user = new User({firstName: 'User'});
+```
+
+### .fromRow(row)
+
+```javascript
+// the same as the regular constructor, but snake_key property names will be converted to camelCase
+// useful when dealing with raw DB results
+const user = User.fromRow({first_name: 'User'});
+```
+
+### #set(*)
+
+```javascript
+// a convenience method to adjust instance properties, supports chaining
+user.set('firstName', 'A').set('lastName', 'B');
+// is identical to
+user.set({firstName: 'A', lastName: 'B'});
+```
+
+### #save(execOpts) async
+
+```javascript
+// upsert instance record into the DB
+user.save();
+```
+
+### #delete(execOpts) async
+
+```javascript
+// delete instance record from the DB
+user.delete();
+```
+
+### #extend(properties, execOpts) async
+
+```javascript
+// extend instance
+user.extend('articles');
+// an array can be supplied to call multiple extenders
+user.extend(['articles', 'comments']);
+```
+
+## linkModels utility
+
+### link({models}) async
+
+Discovers relationships between supplied models and appends two types of extenders:
+
+1. "isReferenced" - adds a boolean value indicating whether the instance is referenced from somewhere or not.
+2. A set of extenders that allow to append model instances of referenced records. 
+This is done for all properties names which follow the pattern "something_id". 
+"something" becomes the name of the extender and of the property it appends.
+The value of that property is an instance of the model that uses the table of the referenced record. 

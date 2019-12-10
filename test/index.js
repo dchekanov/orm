@@ -1,109 +1,931 @@
+require('dotenv').config({path: 'test/.env'});
+
 const assert = require('assert');
-const orm = require('../index');
+const fs = require('fs');
+const _ = require('lodash');
+const {Pool} = require('pg');
 
-describe('ORM', function() {
-  before(async function() {
-    await orm.setup({modulesDir: 'test/models', defaultPoolMaxConnections: 5});
+const pool = new Pool();
+const schemaSql = fs.readFileSync('test/schema.sql', 'utf8');
+
+function resetDb() {
+  return pool.query(schemaSql);
+}
+
+const convertKeys = require('../lib/convert-keys');
+
+const Db = require('../lib/db');
+const db = new Db({pool});
+
+const Model = require('../lib/model');
+
+class Hat extends Model {
+  static get db() {
+    return db;
+  }
+
+  static get table() {
+    return 'hats';
+  }
+}
+
+class User extends Model {
+  static get db() {
+    return db;
+  }
+
+  static get table() {
+    return 'users';
+  }
+}
+
+const linkModels = require('../lib/link-models');
+
+after(function() {
+  pool.end();
+});
+
+beforeEach(() => {
+  db.removeAllListeners('execFinish');
+});
+
+describe('lib/convert-keys', function() {
+  describe('toCamelCase', function() {
+    it('should convert row_keys to objectKeys', function() {
+      const row = {id: 1, prop_a: 2, p_r_o_p_b: 3};
+      const object = convertKeys.toCamelCase(row);
+
+      assert(object.id === row.id);
+      assert(object.propA === row.prop_a);
+      assert(object.pROPB === row.p_r_o_p_b);
+    });
+
+    it('should not throw when target is missing or of unconventional type', function() {
+      assert.doesNotThrow(() => convertKeys.toCamelCase());
+      assert.doesNotThrow(() => convertKeys.toCamelCase(null));
+      assert.doesNotThrow(() => convertKeys.toCamelCase(1));
+    });
   });
 
-  after(function() {
-    return orm.endPools();
+  describe('toSnakeCaseDeep', function() {
+    it('should convert objectKeys to row_keys, including all child elements', function() {
+      const object = {
+        id: 1,
+        propA: 2,
+        pRoPb: 2,
+        propC: {
+          propD: 3,
+          propE: [
+            {propF: 4}, {propG: 5}, 6
+          ]
+        },
+        propNull: null,
+        propDate: new Date()
+      };
+
+      const row = convertKeys.toSnakeCaseDeep(object);
+
+      assert(row.id === object.id);
+      assert(row.prop_a === object.propA);
+      assert(row.p_ro_pb === object.pRoPb);
+      assert(row.prop_c.prop_d === object.propC.propD);
+      assert(row.prop_c.prop_e[0].prop_f === object.propC.propE[0].propF);
+      assert(row.prop_c.prop_e[1].prop_g === object.propC.propE[1].propG);
+      assert(row.prop_c.prop_e[2] === object.propC.propE[2]);
+      assert(row.prop_null === object.propNull);
+      assert(row.prop_date.getTime() === object.propDate.getTime());
+    });
+
+    it('should support array input', function() {
+      const object = [{propA: 1}, {propB: 2, propC: {propD: 3}}];
+      const row = convertKeys.toSnakeCaseDeep(object);
+
+      assert(row[0].prop_a === object[0].propA);
+      assert(row[1].prop_b === object[1].propB);
+      assert(row[1].prop_c.prop_d === object[1].propC.propD);
+    });
+
+    it('should not modify properties starting with $ (conditional helpers)', function() {
+      const object = {where: {something: {$notNull: true}}};
+      const row = convertKeys.toSnakeCaseDeep(object);
+
+      assert(row.where.something.$notNull === object.where.something.$notNull);
+    });
+
+    it('should not throw when target is missing or of unconventional type', function() {
+      assert.doesNotThrow(() => convertKeys.toSnakeCaseDeep());
+      assert.doesNotThrow(() => convertKeys.toSnakeCaseDeep(null));
+      assert.doesNotThrow(() => convertKeys.toSnakeCaseDeep(1));
+    });
+  });
+});
+
+describe('lib/db', function() {
+  describe('constructor', function() {
+    it('should use the supplied pool', function() {
+      const testDb = new Db({pool});
+
+      assert(testDb.pool === pool);
+    });
+
+    it('should create a new pool when called with no arguments', function() {
+      const testDb = new Db();
+
+      assert(typeof testDb.pool === 'object');
+    });
+
+    it('should use the supplied poolOptions', function() {
+      const poolOptions = {max: 1};
+      const testDb = new Db({poolOptions});
+
+      assert(testDb.pool.options.max === poolOptions.max);
+    });
   });
 
-  afterEach(async function() {
-    const {Hat, Person, Style} = orm.models;
+  describe('convertSpec', function() {
+    it('should throw on invalid arguments', function() {
+      assert.throws(() => db.convertSpec(), {name: 'Error', code: 'ARGUMENTS_INVALID'});
+      assert.throws(() => db.convertSpec(123), {name: 'Error', code: 'ARGUMENTS_INVALID'});
+    });
 
-    await Person.delete();
-    await Hat.delete();
-    await Style.delete();
+    it('should return converted spec, statement, and values', function() {
+      const spec = {type: 'select', table: 'users'};
+      const converted = db.convertSpec(spec);
+
+      assert(converted.spec !== spec);
+      assert(typeof converted.spec === 'object');
+      assert(typeof converted.statement === 'string');
+      assert(Array.isArray(converted.values));
+    });
+
+    it('should convert keys of "order" parameter', function() {
+      const spec = {type: 'select', table: 'users', order: {firstName: 'asc'}};
+      const converted = db.convertSpec(spec);
+
+      assert(converted.spec.order.first_name === spec.order.firstName);
+    });
+
+    it('should convert keys of "values" and "where" parameters', function() {
+      const spec = {
+        type: 'update',
+        table: 'users',
+        where: {firstName: 'A', lastName: {$notNull: true}, $or: [{isActive: true}, {isActive: false}]},
+        values: {firstName: 'B'}
+      };
+
+      const converted = db.convertSpec(spec);
+
+      assert(converted.spec.where.first_name === spec.where.firstName);
+      assert(converted.spec.where.last_name.$notNull === spec.where.lastName.$notNull);
+      assert(converted.spec.where.$or[0].is_active === spec.where.$or[0].isActive);
+      assert(converted.spec.where.$or[1].is_active === spec.where.$or[1].isActive);
+    });
   });
 
-  it('should read model definitions', function() {
-    assert(Object.keys(orm.models).length === 3);
-    assert('Person' in orm.models);
-    assert('Hat' in orm.models);
+  describe('exec', function() {
+    it('should reject on missing/invalid spec/statement', async function() {
+      await assert.rejects(() => db.exec(), {name: 'Error', code: 'ARGUMENTS_INVALID'});
+      await assert.rejects(() => db.exec(true), {name: 'Error', code: 'ARGUMENTS_INVALID'});
+    });
+
+    it('should emit "execFinish" events on successful execution', function(done) {
+      const statement = 'SELECT version()';
+
+      db.on('execFinish', function(data) {
+        assert('statement' in data);
+        assert('values' in data);
+        assert('execOpts' in data);
+        assert('startedAt' in data);
+        assert('finishedAt' in data);
+        assert('result' in data);
+        done();
+      });
+
+      db.exec(statement);
+    });
+
+    it('should emit "execFinish" events on failed execution', function(done) {
+      const statement = 'fail';
+
+      db.on('execFinish', function(data) {
+        assert('statement' in data);
+        assert('values' in data);
+        assert('execOpts' in data);
+        assert('startedAt' in data);
+        assert('finishedAt' in data);
+        assert('err' in data);
+        done();
+      });
+
+      db.exec(statement).catch(() => {
+        // ignore
+      });
+    });
+
+    it('should support (statement, values, execOpts) signature', function(done) {
+      const statement = 'SELECT concat($1::text, $2::text)';
+      const values = ['a', 'b'];
+      const execOpts = {log: false};
+
+      db.on('execFinish', function(data) {
+        if (data.err) {
+          return;
+        }
+
+        assert(data.statement === statement);
+        assert(data.values === values);
+        assert(data.execOpts === execOpts);
+        done();
+      });
+
+      db.exec(statement, values, execOpts).catch(done);
+    });
+
+    it('should support (statement, execOpts) signature', function(done) {
+      const statement = 'SELECT version()';
+      const execOpts = {log: false};
+
+      db.on('execFinish', function(data) {
+        if (data.err) {
+          return;
+        }
+
+        assert(data.statement === statement);
+        assert(data.values.length === 0);
+        assert(data.execOpts === execOpts);
+        done();
+      });
+
+      db.exec(statement, execOpts).catch(done);
+    });
+
+    it('should support (spec, execOpts) signature', function(done) {
+      const spec = {type: 'select', table: 'hats', where: {color: 'black'}};
+      const execOpts = {log: false};
+      const convertedSpec = db.convertSpec(spec);
+
+      db.on('execFinish', function(data) {
+        if (data.err) {
+          return;
+        }
+
+        assert(data.statement === convertedSpec.statement);
+        assert(_.isEqual(data.values, convertedSpec.values));
+        assert(data.execOpts === execOpts);
+        done();
+      });
+
+      db.exec(spec, execOpts).catch(done);
+    });
   });
 
-  it('should create records', async function() {
-    const {Hat} = orm.models;
+  describe('transact', function() {
+    it('should reject on invalid arguments', async function() {
+      await assert.rejects(() => db.transact(), {name: 'Error', code: 'ARGUMENTS_INVALID'});
+    });
 
-    await new Hat({color: 'blue'}).save();
+    it('should run the supplied function within a transaction (commit)', function(done) {
+      const statement = 'SELECT version()';
+      const executed = [];
 
-    assert(await Hat.count() === 1);
+      db.on('execFinish', function(data) {
+        if (data.err) {
+          return;
+        }
+
+        executed.push(data);
+
+        if (executed.length === 3) {
+          assert(executed[0].statement === 'BEGIN');
+          assert(executed[1].statement === statement);
+          assert(typeof executed[1].result.rows[0].version === 'string');
+          assert(executed[2].statement === 'COMMIT');
+          done();
+        }
+      });
+
+      db.transact(trExecOpts => db.exec(statement, trExecOpts)).catch(done);
+    });
+
+    it('should run the supplied function within a transaction (rollback)', function(done) {
+      const executed = [];
+
+      db.on('execFinish', function(data) {
+        if (data.err) {
+          return;
+        }
+
+        executed.push(data);
+
+        if (executed.length === 2) {
+          assert(executed[0].statement === 'BEGIN');
+          assert(executed[1].statement === 'ROLLBACK');
+          done();
+        }
+      });
+
+      db.transact(() => Promise.reject(new Error('ignore')))
+        .catch(err => {
+          if (err.message === 'ignore') {
+            return;
+          }
+
+          done(err);
+        });
+    });
+
+    it('should reuse the supplied client', async function() {
+      const client = await pool.connect();
+
+      await db.transact(trExecOpts => assert(trExecOpts.client === client), {client});
+
+      client.release();
+    });
+  });
+});
+
+describe('lib/model', function() {
+  describe('constructor', function() {
+    it('should assign passed properties to the created instance', function() {
+      const properties = {color: 'black'};
+      const hat = new Hat(properties);
+
+      assert(hat.color === properties.color);
+    });
+
+    it('should use "generateId" static method to assign ids to instances', function() {
+      const id = 1;
+
+      class Fedora extends Hat {
+        static generateId() {
+          return id;
+        }
+      }
+
+      const fedora = new Fedora();
+
+      assert(fedora.id === id);
+    });
   });
 
-  it('should update records', async function() {
-    const {Hat} = orm.models;
+  describe('fromRow', function() {
+    it('should create a new instance from row', function() {
+      const row = {id: 1, created_at: new Date()};
+      const hat = Hat.fromRow(row);
 
-    await new Hat({color: 'blue'}).save();
-    await Hat.update({where: {color: 'blue'}, values: {color: 'yellow'}});
-
-    assert(await Hat.count({color: 'yellow'}) === 1);
+      assert(hat.createdAt === row.created_at);
+    });
   });
 
-  it('should delete records', async function() {
-    const {Hat} = orm.models;
+  describe('exec', function() {
+    it('should throw if model is not linked to a DB', function() {
+      class Test extends Model {
 
-    await new Hat({color: 'blue'}).save();
-    await Hat.delete({where: {color: 'blue'}});
+      }
 
-    assert(await Hat.count() === 0);
+      assert.throws(() => Test.exec({type: 'select'}), {name: 'Error', code: 'DB_MISSING'});
+    });
+
+    it('should throw if model is not linked to a table', function() {
+      class Test extends Model {
+        static get db() {
+          return db;
+        }
+      }
+
+      assert.throws(() => Test.exec({type: 'select'}), {name: 'Error', code: 'TABLE_MISSING'});
+    });
+
+    it('should call db.exec with spec modified to point to model table', function(done) {
+      Hat.db.on('execFinish', function(data) {
+        assert(data.spec.table === Hat.table);
+        done();
+      });
+
+      Hat.exec({type: 'select'}).catch(done);
+    });
   });
 
-  it('should extend instances', async function() {
-    const {Hat, Person} = orm.models;
+  describe('.refreshColumns', function() {
+    beforeEach(resetDb);
 
-    const hat = await new Hat({color: 'blue'}).save();
-    await new Person({name: 'John', hatId: hat.id}).save();
+    it('should update the list of columns defined for the table', async function() {
+      await Hat.refreshColumns();
 
-    const person = await Person.findOne({where: {name: 'John'}}, {extend: 'hat'});
-
-    assert(person.hat.color === 'blue');
+      assert(Hat.columns.length === 3);
+      assert(Hat.columns.includes('id'));
+      assert(Hat.columns.includes('color'));
+      assert(Hat.columns.includes('created_at'));
+    });
   });
 
-  it('should add "isReferenced" extender', async function() {
-    const {Hat, Person, Style} = orm.models;
+  describe('.count', function() {
+    beforeEach(resetDb);
 
-    // not referenced
-    const personA = await new Person({name: 'John'}).save();
+    it('should return the number of matched rows', async function() {
+      await pool.query(`INSERT INTO hats (color) VALUES ('black'), ('gray')`);
 
-    assert((await Person.findById(personA.id, {extend: 'isReferenced'})).isReferenced === false);
+      const count = await Hat.count({where: {color: 'black'}});
 
-    // now referenced in the style
-    const styleA = await new Style({name: 'fancy', createdBy: personA.id}).save();
+      assert(count === 1);
+    });
 
-    assert((await Person.findById(personA.id, {extend: 'isReferenced'})).isReferenced === true);
+    it('should pass execOpts', function() {
+      const execOpts = {op: 'test'};
 
-    // no longer referenced after deleting the style
-    await styleA.delete();
+      Hat.db.on('execFinish', function(data) {
+        if (data.err) {
+          return;
+        }
 
-    assert((await Person.findById(personA.id, {extend: 'isReferenced'})).isReferenced === false);
+        assert(data.execOpts.op === execOpts.op);
+      });
 
-    const personB = await new Person({name: 'Mike'}).save();
-    const styleB = await new Style({name: 'shmancy'}).save();
-
-    // multiple references in a custom table
-    await orm.db.query(
-      `INSERT INTO person_style (person_id, style_id, created_by) VALUES ($1, $2, $3)`,
-      [personB.id, styleB.id, personA.id]
-    );
-
-    assert((await Person.findById(personB.id, {extend: 'isReferenced'})).isReferenced === true);
-    assert((await Style.findById(styleB.id, {extend: 'isReferenced'})).isReferenced === true);
-    assert((await Person.findById(personA.id, {extend: 'isReferenced'})).isReferenced === true);
+      return Hat.count({}, execOpts);
+    });
   });
 
-  it('should allow to reset the default pool', async function() {
-    const oldPool = orm.defaultPool;
+  describe('.find', function() {
+    beforeEach(resetDb);
 
-    orm.defaultPool.reset();
+    it('should find instance records', async function() {
+      await pool.query(`INSERT INTO hats (color) VALUES ('black'), ('gray')`);
 
-    const newPool = orm.defaultPool;
+      const hats = await Hat.find({where: {color: 'black'}});
 
-    assert(oldPool !== newPool);
+      assert(hats.length === 1);
+      assert(typeof hats[0].id === 'number');
+      assert(hats[0].color === 'black');
+    });
+
+    it('should call .extend() for found instance records', async function() {
+      const extend = 'something';
+
+      class Fedora extends Hat {
+        static extend(instances) {
+          instances.forEach(instance => instance[extend] = true);
+
+          return Promise.resolve(instances);
+        }
+      }
+
+      await pool.query(`INSERT INTO hats (color) VALUES ('black'), ('gray')`);
+
+      const fedoras = await Fedora.find({where: {color: 'black'}}, {extend});
+
+      assert(fedoras[0][extend] === true);
+    });
+
+    it('should pass execOpts', function() {
+      const execOpts = {op: 'test'};
+
+      Hat.db.on('execFinish', function(data) {
+        if (data.err) {
+          return;
+        }
+
+        assert(data.execOpts.op === execOpts.op);
+      });
+
+      return Hat.find({}, execOpts);
+    });
   });
 
-  it('should allow to specify the max connection limit for the default pool', function() {
-    assert(orm.defaultPool.options.max === 5);
+  describe('.findOne', function() {
+    beforeEach(resetDb);
+
+    it('should find a single instance record', async function() {
+      await pool.query(`INSERT INTO hats (color) VALUES ('black'), ('gray')`);
+      const hat = await Hat.findOne();
+
+      assert(['black', 'gray'].includes(hat.color));
+    });
+
+    it('should pass execOpts', function() {
+      const execOpts = {op: 'test'};
+
+      Hat.db.on('execFinish', function(data) {
+        if (data.err) {
+          return;
+        }
+
+        assert(data.execOpts.op === execOpts.op);
+      });
+
+      return Hat.findOne({}, execOpts);
+    });
+  });
+
+  describe('.findById', function() {
+    beforeEach(resetDb);
+
+    it('should throw if id argument is not supplied', function() {
+      assert.throws(() => Hat.findById(), {name: 'Error', code: 'ARGUMENTS_INVALID'});
+    });
+
+    it('should find an instance record by id', async function() {
+      await pool.query(`INSERT INTO hats (color) VALUES ('black'), ('gray')`);
+      const id = (await pool.query(`SELECT id FROM hats WHERE color = 'black'`)).rows[0].id;
+      const hat = await Hat.findById(id);
+
+      assert(hat.color === 'black');
+    });
+
+    it('should pass execOpts', function() {
+      const execOpts = {op: 'test'};
+
+      Hat.db.on('execFinish', function(data) {
+        if (data.err) {
+          return;
+        }
+
+        assert(data.execOpts.op === execOpts.op);
+      });
+
+      return Hat.findById(1, execOpts);
+    });
+  });
+
+  describe('.update', function() {
+    beforeEach(resetDb);
+
+    it('should update instance records', async function() {
+      const color = 'red';
+      await pool.query(`INSERT INTO hats (color) VALUES ('black'), ('gray')`);
+      await Hat.update({where: {color: 'black'}, values: {color}});
+
+      const result = await pool.query(`SELECT count(*) FROM hats WHERE color = '${color}'`);
+
+      assert(result.rows[0].count === '1');
+    });
+
+    it('should pass execOpts', function() {
+      const execOpts = {op: 'test'};
+
+      Hat.db.on('execFinish', function(data) {
+        if (data.err) {
+          return;
+        }
+
+        assert(data.execOpts.op === execOpts.op);
+      });
+
+      return Hat.update({where: {color: 'black'}, values: {color: 'red'}}, execOpts);
+    });
+  });
+
+  describe('.delete', function() {
+    beforeEach(resetDb);
+
+    it('should delete instance records', async function() {
+      await pool.query(`INSERT INTO hats (color) VALUES ('black'), ('gray')`);
+      await Hat.delete({where: {color: 'black'}});
+
+      const result = await pool.query('SELECT * FROM hats');
+
+      assert(result.rows.length === 1);
+      assert(result.rows[0].color === 'gray');
+    });
+
+    it('should pass execOpts', function() {
+      const execOpts = {op: 'test'};
+
+      Hat.db.on('execFinish', function(data) {
+        if (data.err) {
+          return;
+        }
+
+        assert(data.execOpts.op === execOpts.op);
+      });
+
+      return Hat.delete({}, execOpts);
+    });
+  });
+
+  describe('.extend', function() {
+    beforeEach(resetDb);
+
+    class Fedora extends Hat {
+      static get extenders() {
+        return {
+          randomNumber: instances => {
+            instances.forEach(instance => instance.randomNumber = Math.random());
+          },
+          execOpts: (instances, execOpts) => {
+            instances.forEach(instance => instance.execOpts = execOpts);
+          }
+        };
+      }
+    }
+
+    it('should apply extenders to instances (string notation)', async function() {
+      const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
+
+      await Fedora.extend(fedoras, 'randomNumber');
+
+      assert(fedoras.every(fedora => typeof fedora.randomNumber === 'number'));
+    });
+
+    it('should apply extenders to instances (array notation)', async function() {
+      const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
+
+      await Fedora.extend(fedoras, ['randomNumber', 'execOpts']);
+
+      assert(fedoras.every(fedora => typeof fedora.randomNumber === 'number'));
+      assert(fedoras.every(fedora => typeof fedora.execOpts === 'object'));
+    });
+
+    it('should pass the list properties to extend further', async function() {
+      const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
+
+      await Fedora.extend(fedoras, 'execOpts.deep.deeper');
+
+      assert(_.isEqual(fedoras[0].execOpts.extend, ['deep.deeper']));
+    });
+
+    it('should not reject if extender does not exist', async function() {
+      const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
+
+      await assert.doesNotReject(() => Fedora.extend(fedoras, 'missing'));
+    });
+  });
+
+  describe('#set', function() {
+    it('should assign instance properties (k, v signature)', function() {
+      const hat = new Hat();
+      const result = hat.set('color', 'black');
+
+      assert(result === hat);
+      assert(hat.color === 'black');
+    });
+
+    it('should assign instance properties (object signature)', function() {
+      const hat = new Hat();
+      const result = hat.set({color: 'black'});
+
+      assert(result === hat);
+      assert(hat.color === 'black');
+    });
+  });
+
+  describe('#save', function() {
+    beforeEach(resetDb);
+
+    it('should refresh columns before saving', async function() {
+      delete Hat.columns;
+
+      const hat = new Hat({color: 'black'});
+
+      await hat.save();
+
+      assert(Hat.columns.length === 3);
+    });
+
+    it('should not reject when saving with properties that do not have matching columns', async function() {
+      const hat = new Hat({color: 'black', hasFeathers: true});
+
+      await assert.doesNotReject(() => hat.save());
+    });
+
+    it('should save instance record and assign properties set by the DB', async function() {
+      const createdAt = new Date();
+      const hat = new Hat({color: 'black', createdAt});
+
+      await hat.save();
+
+      const result = await pool.query('SELECT * FROM hats');
+
+      assert(result.rows[0].color === hat.color);
+      assert(result.rows[0].id === 1);
+      assert(result.rows[0].created_at.getTime() === createdAt.getTime());
+    });
+
+    it('should save an instance with no properties supplied', async function() {
+      const hat = new Hat();
+
+      await hat.save();
+
+      assert(typeof hat.id === 'number');
+    });
+
+    it('should upsert instance record', async function() {
+      const hat = new Hat({color: 'black'});
+      const replacementHat = new Hat({id: 1, color: 'gray'});
+
+      await hat.save();
+      await replacementHat.save();
+
+      const result = await pool.query('SELECT * FROM hats');
+
+      assert(result.rows.length === 1);
+      assert(result.rows[0].id === 1);
+      assert(result.rows[0].color === 'gray');
+    });
+
+    it('should pass execOpts', function() {
+      const execOpts = {op: 'test'};
+
+      Hat.db.on('execFinish', function(data) {
+        if (data.err || data.spec.table !== Hat.table) {
+          return;
+        }
+
+        assert(data.execOpts.op === execOpts.op);
+      });
+
+      const hat = new Hat({color: 'black'});
+
+      return hat.save(execOpts);
+    });
+  });
+
+  describe('#delete', function() {
+    beforeEach(resetDb);
+
+    it('should delete the instance', async function() {
+      await pool.query(`INSERT INTO hats (color) VALUES ('black')`);
+
+      const hat = await Hat.findOne({color: 'black'});
+
+      await hat.delete();
+
+      const result = await pool.query('SELECT count(*) FROM hats');
+
+      assert(result.rows[0].count === '0');
+    });
+
+    it('should pass execOpts', function() {
+      const execOpts = {op: 'test'};
+
+      Hat.db.on('execFinish', function(data) {
+        if (data.err) {
+          return;
+        }
+
+        assert(data.execOpts.op === execOpts.op);
+      });
+
+      const hat = new Hat({id: 1});
+
+      return hat.delete(execOpts);
+    });
+  });
+
+  describe('#extend', function() {
+    beforeEach(resetDb);
+
+    it('should call .extend() for the instance', async function() {
+      const extend = 'something';
+
+      class Fedora extends Hat {
+        static extend(instances) {
+          instances.forEach(instance => instance[extend] = true);
+
+          return Promise.resolve(instances);
+        }
+      }
+
+      await pool.query(`INSERT INTO hats (color) VALUES ('black')`);
+
+      const fedora = await Fedora.findOne({where: {color: 'black'}});
+
+      await fedora.extend(extend);
+
+      assert(fedora[extend] === true);
+    });
+
+    it('should pass execOpts', function() {
+      const extend = 'something';
+      const execOpts = {op: 'test'};
+
+      class Fedora extends Hat {
+        static extend(instances, properties, extenderExecOpts = {}) {
+          assert(extenderExecOpts.op === execOpts.op);
+
+          return Promise.resolve();
+        }
+      }
+
+      const fedora = new Fedora({id: 1});
+
+      return fedora.extend(extend, execOpts);
+    });
+  });
+});
+
+describe('link-models', function() {
+  before(resetDb);
+
+  describe('getReferences', function() {
+    it('should return empty list if models are not specified', async function() {
+      const references = await linkModels.getReferences();
+
+      assert(references.length === 0);
+    });
+
+    it('should return empty list if the list of models is empty', async function() {
+      const references = await linkModels.getReferences({models: []});
+
+      assert(references.length === 0);
+    });
+
+    it('should reject if one of the models does not have a DB assigned', async function() {
+      class Fedora extends Hat {
+        static get db() {
+          return null;
+        }
+      }
+
+      await assert.rejects(
+        () => linkModels.getReferences({models: [Fedora]}),
+        {name: 'Error', code: 'ARGUMENTS_INVALID'}
+      );
+    });
+
+    it('should reject if models do not share the same DB', async function() {
+      class Fedora extends Hat {
+        static get db() {
+          return null;
+        }
+      }
+
+      await assert.rejects(() => linkModels.getReferences({models: [Hat, Fedora]}), {
+        name: 'Error',
+        code: 'ARGUMENTS_INVALID'
+      });
+    });
+
+    it('should discover references between model tables', async function() {
+      const references = await linkModels.getReferences({models: [Hat, User]});
+
+      assert(references.length === 1);
+      assert(references[0].table_schema === 'public');
+      assert(references[0].table_name === 'users');
+      assert(references[0].column_name === 'hat_id');
+      assert(references[0].foreign_table_name === 'hats');
+    });
+  });
+
+  describe('link', function() {
+    it('should not reject if models are not supplied', async function() {
+      await assert.doesNotReject(() => linkModels.link());
+    });
+
+    it('should add extenders that help discovering model relationships', async function() {
+      class Fedora extends Hat {
+
+      }
+
+      class Manager extends User {
+
+      }
+
+      await linkModels.link({models: [Fedora, Manager]});
+
+      assert(typeof Fedora.extenders.isReferenced === 'function');
+      assert(typeof Manager.extenders.isReferenced === 'function');
+      assert(typeof Manager.extenders.hat === 'function');
+
+      const fedora = new Fedora({color: 'black'});
+
+      await fedora.save();
+      await fedora.extend('isReferenced');
+
+      assert(fedora.isReferenced === false);
+
+      const manager = new Manager({hatId: fedora.id});
+
+      await manager.save();
+      await fedora.extend('isReferenced');
+      await manager.extend('hat');
+
+      assert(fedora.isReferenced === true);
+      assert(manager.hat.id === fedora.id);
+    });
+
+    it('should preserve existing extenders', async function() {
+      class Fedora extends Hat {
+
+      }
+
+      Fedora.extenders = {
+        existing: () => _.noop
+      };
+
+      await linkModels.link({models: [Fedora]});
+
+      assert(typeof Fedora.extenders.isReferenced === 'function');
+      assert(typeof Fedora.extenders.existing === 'function');
+    });
+  });
+});
+
+describe('index', function() {
+  it('should expose Db, Model, linkModels', function() {
+    const index = require('../index');
+
+    assert(index.Db === Db);
+    assert(index.Model === Model);
+    assert(index.linkModels === linkModels);
   });
 });

@@ -1,4 +1,12 @@
 # IntelliJ project files
 .idea
+
 # 3rd-party modules
 node_modules
+
+# SonarQube
+.scannerwork
+
+# test settings, coverage and temp data
+test/.env
+test/.nyc

@@ -4,7 +4,8 @@ DROP TABLE IF EXISTS hats;
 CREATE TABLE hats (
   id serial PRIMARY KEY,
   color text,
-  created_at timestamptz
+  created_at timestamptz,
+  data jsonb
 );
 
 CREATE TABLE users (

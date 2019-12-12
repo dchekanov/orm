@@ -425,10 +425,11 @@ describe('lib/model', function() {
     it('should update the list of columns defined for the table', async function() {
       await Hat.refreshColumns();
 
-      assert(Hat.columns.length === 3);
+      assert(Hat.columns.length === 4);
       assert(Hat.columns.includes('id'));
       assert(Hat.columns.includes('color'));
       assert(Hat.columns.includes('created_at'));
+      assert(Hat.columns.includes('data'));
     });
   });
 
@@ -691,7 +692,7 @@ describe('lib/model', function() {
 
       await hat.save();
 
-      assert(Hat.columns.length === 3);
+      assert(Hat.columns.length === 4);
     });
 
     it('should not reject when saving with properties that do not have matching columns', async function() {
@@ -749,6 +750,17 @@ describe('lib/model', function() {
       const hat = new Hat({color: 'black'});
 
       return hat.save(execOpts);
+    });
+
+    // https://github.com/goodybag/mongo-sql/issues/190
+    it('should save properties that are objects with "type" key set', async function() {
+      const hat = new Hat({data: {type: 'magic'}});
+
+      await assert.doesNotReject(() => hat.save());
+
+      const result = await db.exec('SELECT * FROM hats');
+
+      assert(result.rows[0].data.type === 'magic');
     });
   });
 

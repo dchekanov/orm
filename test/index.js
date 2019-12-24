@@ -942,6 +942,23 @@ describe('link-models', function() {
       assert(typeof Fedora.extenders.isReferenced === 'function');
       assert(typeof Fedora.extenders.existing === 'function');
     });
+
+    it('should pass execOpts', function(done) {
+      class Fedora extends Hat {
+
+      }
+
+      db.on('execFinish', function(data) {
+        if (data.err) {
+          return;
+        }
+
+        assert(data.execOpts.log === false);
+        done();
+      });
+
+      linkModels.link({models: [Fedora], execOpts: {log: false}}).catch(done);
+    });
   });
 });
 

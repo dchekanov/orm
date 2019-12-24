@@ -34,8 +34,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
-        with:
-          fetch-depth: 1
       - name: Use Node.js 12
         uses: actions/setup-node@v1
         with:
@@ -51,7 +49,6 @@ jobs:
         run: |
           npm ci
           npm run coverage
-          sed -i 's+/home/runner/work/orm/orm+/github/workspace+g' test/.nyc/lcov.info
       - name: SonarCloud scan
         uses: sonarsource/sonarcloud-github-action@master
         env:

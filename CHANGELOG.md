@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.5] - 2020-04-13
+### Fixed
+- Multilevel extenders being called multiple times
+### Changed
+- Updated dependencies
+
 ## [3.0.4] - 2020-01-22
 ### Fixed
 - Saving JSON values
@@ -114,7 +120,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2019-04-09
 Initial release
 
-[Unreleased]: https://github.com/dchekanov/orm/compare/3.0.4...HEAD
+[Unreleased]: https://github.com/dchekanov/orm/compare/3.0.5...HEAD
+[3.0.5]: https://github.com/dchekanov/orm/compare/3.0.4...3.0.5
 [3.0.4]: https://github.com/dchekanov/orm/compare/3.0.3...3.0.4
 [3.0.3]: https://github.com/dchekanov/orm/compare/3.0.2...3.0.3
 [3.0.2]: https://github.com/dchekanov/orm/compare/3.0.1...3.0.2

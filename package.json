@@ -1,6 +1,6 @@
 {
   "name": "@keleran/orm",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "PostgreSQL ORM toolkit for Node.js projects",
   "files": [
     "index.js",
@@ -31,9 +31,9 @@
   "homepage": "https://github.com/dchekanov/orm#readme",
   "dependencies": {
     "err-code": "^2.0.3",
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.19",
     "mongo-sql": "^6.2.0",
-    "pg": "^8.2.1"
+    "pg": "^8.3.0"
   },
   "devDependencies": {
     "dotenv": "^8.2.0",

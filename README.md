@@ -1,6 +1,6 @@
 # @keleran/orm
 
-Classes and utilities that help implementing a PostgreSQL ORM in Node.js projects.  
+PostgreSQL ORM bits for Node.js projects.  
 Works with Node.js 10, 12 and PostgreSQL 9, 10, 11, and 12.
 
 ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/dchekanov/orm/Test)
@@ -13,33 +13,33 @@ Works with Node.js 10, 12 and PostgreSQL 9, 10, 11, and 12.
 $ npm i @keleran/orm
 ```
 
+## Usage
+
 ```javascript
 const {Db, Model, linkModels} = require('@keleran/orm');
 ```
 
-## Db class
+### Db class
 
-Simplifies executing statements and performing transactions.  
-Uses [pg](https://node-postgres.com/) to talk to the DB.  
-Understands statements described in the [MoSQL](https://github.com/goodybag/mongo-sql) format.
+Database interface, powered by [pg](https://node-postgres.com/) and [MoSQL](https://github.com/goodybag/mongo-sql).
+Supports raw SQL and transactions.
 
-### constructor({pool, poolOptions})
+#### constructor({pool, poolOptions})
 
 ```javascript
-let db;
 // no options = a new pg.Pool with default options will be created
-db = new Db();
+const db = new Db();
 // poolOptions to use instead of the default ones can be supplied 
-db = new Db({poolOptions: {max: 5}});
+const db = new Db({poolOptions: {max: 5}});
 // an existing pool can be supplied as well
-db = new Db({pool});
+const db = new Db({pool});
 // it's best to listen to db.pool's "error" event so that it doesn't crash the app
 db.pool.on('error', console.log);
 // call db.pool.end() during graceful shutdown
 db.pool.end().then(() => process.exit());
 ```
 
-### #exec(*) async
+#### #exec(*) async
 
 ```javascript
 // statement as plain string
@@ -59,15 +59,16 @@ This can be used for logging:
 
 ```javascript
 db.on('execFinish', data => {
-  if (data.execOpts.log !== true) return;
-  // statement, values, result/err, and more 
-  console.log(data);
+  if (data.execOpts.log === true) {
+    // statement, values, result/err, and more 
+    console.log(data);
+  }
 });
 
 db.exec('SELECT version()', {log: true});
 ```
 
-### #transact(f, execOpts) async
+#### #transact(f, execOpts) async
 
 ```javascript
 // execute a function with multiple queries under a single transaction
@@ -83,14 +84,15 @@ db.transact(async trExecOpts => {
 }, execOpts);
 ```
 
-## Model class
+### Model class
 
-Model is an abstract class that should not be used directly.  
-Application models should extend it to gain ability to be saved, found, updated, counted, and deleted from the DB.  
-All methods that communicate with the DB MUST be supplied with MoSQL statement specs.  
+Inherit from this class to allow application models to be saved, found, updated, counted, and deleted from the DB.  
+
+Methods listed below only accept MoSQL specs.  
+
 Methods automatically convert propertyNames to column_names when saving data and the other way around when fetching it.
 
-### Inheritance
+#### Inheritance
 
 ```javascript
 const db = new Db();
@@ -124,55 +126,55 @@ User.extenders = {
 };
 ```
 
-### .refreshColumns() async
+#### .refreshColumns() async
 
 Each model keeps a list of columns defined for the table so that #save() could build a correct statement.  
 .refreshColumns() is called automatically when #save() is called for the first time.  
-The method should be called manually after adjusting columns. 
+The method should be called manually is schema is adjusted without restarting the app. 
 
-### .count(spec, execOpts) async
+#### .count(spec, execOpts) async
 
 ```javascript
 // count instance records, returns an integer
 User.count({where: {email: {$notNull: true}}});
 ```
 
-### .find(spec, execOpts) async
+#### .find(spec, execOpts) async
 
 ```javascript
 // find instance records, returns an array of instances
 User.find({where: {email: {$notNull: true}}});
 ```
 
-### .findOne(spec, execOpts) async
+#### .findOne(spec, execOpts) async
 
 ```javascript
 // find instance records, returns the first match
 User.findOne({where: {email: {$notNull: true}}});
 ```
 
-### .findById(id, execOpts) async
+#### .findById(id, execOpts) async
 
 ```javascript
 // find instance record by id
 User.findById({where: {email: {$notNull: true}}});
 ```
 
-### .update(spec, execOpts) async
+#### .update(spec, execOpts) async
 
 ```javascript
 // update instance records
 User.update({where: {email: {$notNull: true}}}, {values: {email: null}});
 ```
 
-### .delete(spec, execOpts) async
+#### .delete(spec, execOpts) async
 
 ```javascript
 // delete instance records
 User.delete({where: {email: {$notNull: true}}});
 ```
 
-### .extend(instances, properties, execOpts) async
+#### .extend(instances, properties, execOpts) async
 
 ```javascript
 // extend instance records
@@ -181,7 +183,7 @@ User.extend(users, 'articles');
 User.extend(users, ['articles', 'comments']);
 ```
 
-### constructor(properties)
+#### constructor(properties)
 
 ```javascript
 // create an instance, assigning supplied properties
@@ -189,7 +191,7 @@ User.extend(users, ['articles', 'comments']);
 const user = new User({firstName: 'User'});
 ```
 
-### .fromRow(row)
+#### .fromRow(row)
 
 ```javascript
 // the same as the regular constructor, but snake_key property names will be converted to camelCase
@@ -197,7 +199,7 @@ const user = new User({firstName: 'User'});
 const user = User.fromRow({first_name: 'User'});
 ```
 
-### #set(*)
+#### #set(*)
 
 ```javascript
 // a convenience method to adjust instance properties, supports chaining
@@ -206,21 +208,21 @@ user.set('firstName', 'A').set('lastName', 'B');
 user.set({firstName: 'A', lastName: 'B'});
 ```
 
-### #save(execOpts) async
+#### #save(execOpts) async
 
 ```javascript
 // upsert instance record into the DB
 user.save();
 ```
 
-### #delete(execOpts) async
+#### #delete(execOpts) async
 
 ```javascript
 // delete instance record from the DB
 user.delete();
 ```
 
-### #extend(properties, execOpts) async
+#### #extend(properties, execOpts) async
 
 ```javascript
 // extend instance
@@ -229,9 +231,9 @@ user.extend('articles');
 user.extend(['articles', 'comments']);
 ```
 
-## linkModels utility
+### linkModels utility
 
-### link({models}) async
+#### link({models}) async
 
 Discovers relationships between supplied models and appends two types of extenders:
 

@@ -4,6 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const _ = require('lodash');
 const {Pool} = require('pg');
+const sinon = require('sinon');
 
 const pool = new Pool();
 const schemaSql = fs.readFileSync('test/schema.sql', 'utf8');
@@ -48,6 +49,7 @@ after(async function() {
 
 beforeEach(() => {
   db.removeAllListeners('execFinish');
+  sinon.restore();
 });
 
 describe('lib/convert-keys', function() {
@@ -722,18 +724,95 @@ describe('lib/model', function() {
       assert(typeof hat.id === 'number');
     });
 
-    it('should upsert instance record', async function() {
+    it('rejects when supplied with invalid mode', async function() {
       const hat = new Hat({color: 'black'});
-      const replacementHat = new Hat({id: 1, color: 'gray'});
 
-      await hat.save();
-      await replacementHat.save();
+      await assert.rejects(() => hat.save('overwrite'), err => err.code === 'MODE_INVALID');
+    });
+
+    it('creates a record in the "insert" mode', async function() {
+      const hat = new Hat({id: 1, color: 'black'});
+
+      await hat.save('insert');
+
+      const result = await pool.query('SELECT * FROM hats');
+
+      assert(result.rows.length === 1);
+      assert(result.rows[0].id === 1);
+      assert(result.rows[0].color === 'black');
+    });
+
+    it('rejects when trying to overwrite in the "insert" mode', async function() {
+      const hat1 = new Hat({id: 1, color: 'black'});
+      const hat2 = new Hat({id: 1, color: 'gray'});
+
+      await hat1.save('insert');
+
+      await assert.rejects(() => hat2.save('insert'));
+    });
+
+    it('changes a record in the "update" mode', async function() {
+      const hat1 = new Hat({id: 1, color: 'black'});
+      const hat2 = new Hat({id: 1, color: 'gray'});
+
+      await hat1.save();
+      await hat2.save('update');
 
       const result = await pool.query('SELECT * FROM hats');
 
       assert(result.rows.length === 1);
       assert(result.rows[0].id === 1);
       assert(result.rows[0].color === 'gray');
+    });
+
+    it('rejects when trying to update non-existing in the "update" mode', async function() {
+      const hat = new Hat({id: 1, color: 'black'});
+
+      await assert.rejects(() => hat.save('update'), err => err.code === 'NOT_FOUND');
+    });
+
+    it('creates a record in the "upsert" mode', async function() {
+      const hat = new Hat({color: 'black'});
+
+      await hat.save('upsert');
+
+      const result = await pool.query('SELECT * FROM hats');
+
+      assert(result.rows.length === 1);
+      assert(result.rows[0].id === 1);
+      assert(result.rows[0].color === 'black');
+    });
+
+    it('changes a record in the "upsert" mode', async function() {
+      const hat1 = new Hat({id: 1, color: 'black'});
+      const hat2 = new Hat({id: 1, color: 'gray'});
+
+      await hat1.save();
+      await hat2.save('upsert');
+
+      const result = await pool.query('SELECT * FROM hats');
+
+      assert(result.rows.length === 1);
+      assert(result.rows[0].id === 1);
+      assert(result.rows[0].color === 'gray');
+    });
+
+    it('uses the "upsert" mode by default', async function() {
+      const hat1 = new Hat({id: 1, color: 'black'});
+      const hat2 = new Hat({id: 1, color: 'gray'});
+      const hat3 = new Hat({id: 2, color: 'green'});
+
+      await hat1.save();
+      await hat2.save();
+      await hat3.save();
+
+      const result = await pool.query('SELECT * FROM hats ORDER BY id ASC');
+
+      assert(result.rows.length === 2);
+      assert(result.rows[0].id === 1);
+      assert(result.rows[0].color === 'gray');
+      assert(result.rows[1].id === 2);
+      assert(result.rows[1].color === 'green');
     });
 
     it('should pass execOpts', function() {
@@ -761,6 +840,51 @@ describe('lib/model', function() {
       const result = await db.exec('SELECT * FROM hats');
 
       assert(result.rows[0].data.type === 'magic');
+    });
+  });
+
+  describe('#insert', function() {
+    beforeEach(resetDb);
+
+    it('calls #save using the "insert" mode', async function() {
+      const stub = sinon.stub(Model.prototype, 'save');
+
+      const execOpts = {op: 'insert'};
+      const hat = new Hat({color: 'black'});
+
+      await hat.insert(execOpts);
+
+      assert(stub.calledOnceWith('insert', execOpts));
+    });
+  });
+
+  describe('#update', function() {
+    beforeEach(resetDb);
+
+    it('calls #save using the "update" mode', async function() {
+      const stub = sinon.stub(Model.prototype, 'save');
+
+      const execOpts = {op: 'update'};
+      const hat = new Hat({color: 'black'});
+
+      await hat.update(execOpts);
+
+      assert(stub.calledOnceWith('update', execOpts));
+    });
+  });
+
+  describe('#upsert', function() {
+    beforeEach(resetDb);
+
+    it('calls #save using the "upsert" mode', async function() {
+      const stub = sinon.stub(Model.prototype, 'save');
+
+      const execOpts = {op: 'upsert'};
+      const hat = new Hat({color: 'black'});
+
+      await hat.upsert(execOpts);
+
+      assert(stub.calledOnceWith('upsert', execOpts));
     });
   });
 

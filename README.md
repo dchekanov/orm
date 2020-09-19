@@ -208,11 +208,41 @@ user.set('firstName', 'A').set('lastName', 'B');
 user.set({firstName: 'A', lastName: 'B'});
 ```
 
-#### #save(execOpts) async
+#### #save(*) async
 
 ```javascript
-// upsert instance record into the DB
+// upsert
 user.save();
+user.save(execOpts);
+user.save('upsert');
+user.save('upsert', execOpts);
+// insert, rejects if there's already a record with the same id
+user.save('insert');
+user.save('insert', execOpts);
+// update, rejects if there's no record with the same id
+user.save('update');
+user.save('update', execOpts);
+```
+
+#### #insert(execOpts) async
+
+```javascript
+// calls user.save('insert', execOpts); internally
+user.insert(execOpts);
+```
+
+#### #update(execOpts) async
+
+```javascript
+// calls user.save('update', execOpts); internally
+user.update(execOpts);
+```
+
+#### #upsert(execOpts) async
+
+```javascript
+// calls user.save('upsert', execOpts); internally
+user.upsert(execOpts);
 ```
 
 #### #delete(execOpts) async

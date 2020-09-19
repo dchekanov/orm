@@ -12,27 +12,27 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [10, 12, 14]
-        pg: [9, 10, 11, 12]
+        node: [ 10, 12, 14 ]
+        pg: [ 9, 10, 11, 12 ]
     steps:
-    - uses: actions/checkout@v1
-      with:
-        fetch-depth: 1
-    - name: Use Node.js ${{ matrix.node }}
-      uses: actions/setup-node@v1
-      with:
-        node-version: ${{ matrix.node }}
-    - name: Setup PostgreSQL
-      uses: Harmon758/postgresql-action@v1.0.0
-      with:
-        postgresql version: ${{ matrix.pg }}
-        postgresql db: orm
-        postgresql user: orm
-        postgresql password: orm
-    - name: npm install and test
-      run: |
-        npm ci
-        npm test
+      - uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Setup PostgreSQL
+        uses: Harmon758/postgresql-action@v1.0.0
+        with:
+          postgresql version: ${{ matrix.pg }}
+          postgresql db: orm
+          postgresql user: orm
+          postgresql password: orm
+      - name: npm install and test
+        run: |
+          npm ci
+          npm test
   sonar:
     runs-on: ubuntu-latest
     steps:

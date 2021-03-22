@@ -30,18 +30,18 @@
   },
   "homepage": "https://github.com/dchekanov/orm#readme",
   "dependencies": {
-    "err-code": "^2.0.3",
-    "lodash": "^4.17.20",
+    "err-code": "^3.0.1",
+    "lodash": "^4.17.21",
     "mongo-sql": "^6.2.0",
-    "pg": "^8.4.1"
+    "pg": "^8.5.1"
   },
   "devDependencies": {
     "dotenv": "^8.2.0",
     "intelli-espower-loader": "^1.0.1",
-    "mocha": "^8.1.3",
+    "mocha": "^8.3.2",
     "nyc": "^15.1.0",
     "power-assert": "^1.6.1",
-    "sinon": "^9.2.0"
+    "sinon": "^10.0.0"
   },
   "keywords": [
     "orm",

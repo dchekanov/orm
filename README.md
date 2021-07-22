@@ -1,7 +1,7 @@
 # @keleran/orm
 
 PostgreSQL ORM bits for Node.js projects.  
-Works with Node.js 10, 12 and PostgreSQL 9, 10, 11, and 12.
+Works with Node.js 12, 14 and PostgreSQL 9-13.
 
 ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/dchekanov/orm/Test)
 ![Sonar Coverage](https://img.shields.io/sonar/coverage/dchekanov_orm?server=https%3A%2F%2Fsonarcloud.io&sonarVersion=8.0)

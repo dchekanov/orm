@@ -621,6 +621,8 @@ describe('lib/model', function() {
   describe('.extend', function() {
     beforeEach(resetDb);
 
+    const delay = 25;
+
     class Fedora extends Hat {
       static get extenders() {
         return {
@@ -629,6 +631,17 @@ describe('lib/model', function() {
           },
           execOpts: (instances, execOpts) => {
             instances.forEach(instance => instance.execOpts = execOpts);
+          },
+          delay: instances => {
+            return new Promise(resolve => {
+              setTimeout(() => {
+                instances.forEach(instance => instance.delay = delay);
+                resolve();
+              }, delay);
+            });
+          },
+          isDelayed: instances => {
+            instances.forEach(instance => instance.isDelayed = instance.delay === delay);
           }
         };
       }
@@ -663,6 +676,14 @@ describe('lib/model', function() {
       const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
 
       await assert.doesNotReject(() => Fedora.extend(fedoras, 'missing'));
+    });
+
+    it('waits for the previous extender to finish', async function() {
+      const fedoras = [new Fedora({color: 'black'})];
+
+      await Fedora.extend(fedoras, ['delay', 'isDelayed']);
+
+      assert(fedoras.every(fedora => fedora.isDelayed));
     });
   });
 

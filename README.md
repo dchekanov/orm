@@ -164,7 +164,7 @@ User.findById({where: {email: {$notNull: true}}});
 
 ```javascript
 // update instance records
-User.update({where: {email: {$notNull: true}}}, {values: {email: null}});
+User.update({where: {email: {$notNull: true}}, values: {email: null}});
 ```
 
 #### .delete(spec, execOpts) async

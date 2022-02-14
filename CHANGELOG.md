@@ -1,8 +1,15 @@
 # Changelog
-All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## 6.0.0
+
+* Converted to ESM.
+* Dropped Node.js 12 support.
+* Dropped SonarQube scanning.
+* Deprecated #save() in favor of explicit #insert(), #update(), or #upsert().
+* "extend" is a query spec parameter now.
+* Extending functions won't be executed on instances with paths already fully extended.
+* "execOpts" has been renamed to "ctx" for brevity.
+* Simplified changelog format.
 
 ## [5.0.1] - 2021-08-22
 ### Fixed

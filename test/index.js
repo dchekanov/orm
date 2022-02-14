@@ -1,49 +1,37 @@
-require('dotenv').config({path: 'test/.env'});
+import dotenv from 'dotenv';
+import assert from 'assert';
+import fs from 'fs';
+import _ from 'lodash';
+import pg from 'pg';
+import sinon from 'sinon';
+import * as convertKeys from '../lib/convert-keys.js';
+import * as linkModels from '../lib/link-models.js';
+import Db from '../lib/db.js';
+import Model from '../lib/model.js';
 
-const assert = require('assert');
-const fs = require('fs');
-const _ = require('lodash');
-const {Pool} = require('pg');
-const sinon = require('sinon');
+dotenv.config({path: 'test/.env', debug: true});
 
-const pool = new Pool();
+const pool = new pg.Pool();
 const schemaSql = fs.readFileSync('test/schema.sql', 'utf8');
 
 function resetDb() {
   return pool.query(schemaSql);
 }
 
-const convertKeys = require('../lib/convert-keys');
-
-const Db = require('../lib/db');
 const db = new Db({pool});
 
-const Model = require('../lib/model');
-
 class Hat extends Model {
-  static get db() {
-    return db;
-  }
-
-  static get table() {
-    return 'hats';
-  }
+  static db = db;
+  static table = 'hats';
 }
 
 class User extends Model {
-  static get db() {
-    return db;
-  }
-
-  static get table() {
-    return 'users';
-  }
+  static db = db;
+  static table = 'users';
 }
 
-const linkModels = require('../lib/link-models');
-
-after(async function() {
-  await pool.query('DROP TABLE users, hats');
+after(async function () {
+  await pool.query('DROP TABLE IF EXISTS users, hats');
   pool.end();
 });
 
@@ -52,9 +40,9 @@ beforeEach(() => {
   sinon.restore();
 });
 
-describe('lib/convert-keys', function() {
-  describe('toCamelCase', function() {
-    it('should convert row_keys to objectKeys', function() {
+describe('lib/convert-keys', function () {
+  describe('toCamelCase', function () {
+    it('should convert row_keys to objectKeys', function () {
       const row = {id: 1, prop_a: 2, p_r_o_p_b: 3};
       const object = convertKeys.toCamelCase(row);
 
@@ -63,15 +51,15 @@ describe('lib/convert-keys', function() {
       assert(object.pROPB === row.p_r_o_p_b);
     });
 
-    it('should not throw when target is missing or of unconventional type', function() {
+    it('should not throw when target is missing or of unconventional type', function () {
       assert.doesNotThrow(() => convertKeys.toCamelCase());
       assert.doesNotThrow(() => convertKeys.toCamelCase(null));
       assert.doesNotThrow(() => convertKeys.toCamelCase(1));
     });
   });
 
-  describe('toSnakeCaseDeep', function() {
-    it('should convert objectKeys to row_keys, including all child elements', function() {
+  describe('toSnakeCaseDeep', function () {
+    it('should convert objectKeys to row_keys, including all child elements', function () {
       const object = {
         id: 1,
         propA: 2,
@@ -99,7 +87,7 @@ describe('lib/convert-keys', function() {
       assert(row.prop_date.getTime() === object.propDate.getTime());
     });
 
-    it('should support array input', function() {
+    it('should support array input', function () {
       const object = [{propA: 1}, {propB: 2, propC: {propD: 3}}];
       const row = convertKeys.toSnakeCaseDeep(object);
 
@@ -108,14 +96,14 @@ describe('lib/convert-keys', function() {
       assert(row[1].prop_c.prop_d === object[1].propC.propD);
     });
 
-    it('should not modify properties starting with $ (conditional helpers)', function() {
+    it('should not modify properties starting with $ (conditional helpers)', function () {
       const object = {where: {something: {$notNull: true}}};
       const row = convertKeys.toSnakeCaseDeep(object);
 
       assert(row.where.something.$notNull === object.where.something.$notNull);
     });
 
-    it('should not throw when target is missing or of unconventional type', function() {
+    it('should not throw when target is missing or of unconventional type', function () {
       assert.doesNotThrow(() => convertKeys.toSnakeCaseDeep());
       assert.doesNotThrow(() => convertKeys.toSnakeCaseDeep(null));
       assert.doesNotThrow(() => convertKeys.toSnakeCaseDeep(1));
@@ -123,21 +111,21 @@ describe('lib/convert-keys', function() {
   });
 });
 
-describe('lib/db', function() {
-  describe('constructor', function() {
-    it('should use the supplied pool', function() {
+describe('lib/db', function () {
+  describe('constructor', function () {
+    it('should use the supplied pool', function () {
       const testDb = new Db({pool});
 
       assert(testDb.pool === pool);
     });
 
-    it('should create a new pool when called with no arguments', function() {
+    it('should create a new pool when called with no arguments', function () {
       const testDb = new Db();
 
       assert(typeof testDb.pool === 'object');
     });
 
-    it('should use the supplied poolOptions', function() {
+    it('should use the supplied poolOptions', function () {
       const poolOptions = {max: 1};
       const testDb = new Db({poolOptions});
 
@@ -145,13 +133,13 @@ describe('lib/db', function() {
     });
   });
 
-  describe('convertSpec', function() {
-    it('should throw on invalid arguments', function() {
+  describe('convertSpec', function () {
+    it('should throw on invalid arguments', function () {
       assert.throws(() => db.convertSpec(), {name: 'Error', code: 'ARGUMENTS_INVALID'});
       assert.throws(() => db.convertSpec(123), {name: 'Error', code: 'ARGUMENTS_INVALID'});
     });
 
-    it('should return converted spec, statement, and values', function() {
+    it('should return converted spec, statement, and values', function () {
       const spec = {type: 'select', table: 'users'};
       const converted = db.convertSpec(spec);
 
@@ -161,14 +149,14 @@ describe('lib/db', function() {
       assert(Array.isArray(converted.values));
     });
 
-    it('should convert keys of "order" parameter', function() {
+    it('should convert keys of "order" parameter', function () {
       const spec = {type: 'select', table: 'users', order: {firstName: 'asc'}};
       const converted = db.convertSpec(spec);
 
       assert(converted.spec.order.first_name === spec.order.firstName);
     });
 
-    it('should convert keys of "values" and "where" parameters', function() {
+    it('should convert keys of "values" and "where" parameters', function () {
       const spec = {
         type: 'update',
         table: 'users',
@@ -185,19 +173,19 @@ describe('lib/db', function() {
     });
   });
 
-  describe('exec', function() {
-    it('should reject on missing/invalid spec/statement', async function() {
+  describe('exec', function () {
+    it('should reject on missing/invalid spec/statement', async function () {
       await assert.rejects(() => db.exec(), {name: 'Error', code: 'ARGUMENTS_INVALID'});
       await assert.rejects(() => db.exec(true), {name: 'Error', code: 'ARGUMENTS_INVALID'});
     });
 
-    it('should emit "execFinish" events on successful execution', function(done) {
+    it('should emit "execFinish" events on successful execution', function (done) {
       const statement = 'SELECT version()';
 
-      db.on('execFinish', function(data) {
+      db.on('execFinish', function (data) {
         assert('statement' in data);
         assert('values' in data);
-        assert('execOpts' in data);
+        assert('ctx' in data);
         assert('startedAt' in data);
         assert('finishedAt' in data);
         assert('result' in data);
@@ -207,13 +195,13 @@ describe('lib/db', function() {
       db.exec(statement);
     });
 
-    it('should emit "execFinish" events on failed execution', function(done) {
+    it('should emit "execFinish" events on failed execution', function (done) {
       const statement = 'fail';
 
-      db.on('execFinish', function(data) {
+      db.on('execFinish', function (data) {
         assert('statement' in data);
         assert('values' in data);
-        assert('execOpts' in data);
+        assert('ctx' in data);
         assert('startedAt' in data);
         assert('finishedAt' in data);
         assert('err' in data);
@@ -225,77 +213,77 @@ describe('lib/db', function() {
       });
     });
 
-    it('should support (statement, values, execOpts) signature', function(done) {
+    it('should support (statement, values, ctx) signature', function (done) {
       const statement = 'SELECT concat($1::text, $2::text)';
       const values = ['a', 'b'];
-      const execOpts = {log: false};
+      const ctx = {log: false};
 
-      db.on('execFinish', function(data) {
+      db.on('execFinish', function (data) {
         if (data.err) {
           return;
         }
 
         assert(data.statement === statement);
         assert(data.values === values);
-        assert(data.execOpts === execOpts);
+        assert(data.ctx === ctx);
         done();
       });
 
-      db.exec(statement, values, execOpts).catch(done);
+      db.exec(statement, values, ctx).catch(done);
     });
 
-    it('should support (statement, execOpts) signature', function(done) {
+    it('should support (statement, ctx) signature', function (done) {
       const statement = 'SELECT version()';
-      const execOpts = {log: false};
+      const ctx = {log: false};
 
-      db.on('execFinish', function(data) {
+      db.on('execFinish', function (data) {
         if (data.err) {
           return;
         }
 
         assert(data.statement === statement);
         assert(data.values.length === 0);
-        assert(data.execOpts === execOpts);
+        assert(data.ctx === ctx);
         done();
       });
 
-      db.exec(statement, execOpts).catch(done);
+      db.exec(statement, ctx).catch(done);
     });
 
-    it('should support (spec, execOpts) signature', async function() {
+    it('should support (spec, ctx) signature', async function () {
       await resetDb();
 
       const spec = {type: 'select', table: 'hats', where: {color: 'black'}};
-      const execOpts = {log: false};
+      const ctx = {log: false};
       const convertedSpec = db.convertSpec(spec);
 
       await new Promise((resolve, reject) => {
-        db.on('execFinish', function(data) {
+        db.on('execFinish', function (data) {
           if (data.err) {
             return;
           }
 
           assert(data.statement === convertedSpec.statement);
           assert(_.isEqual(data.values, convertedSpec.values));
-          assert(data.execOpts === execOpts);
+          assert(data.ctx === ctx);
           resolve();
         });
 
-        db.exec(spec, execOpts).catch(reject);
+        db.exec(spec, ctx).catch(reject);
       });
     });
   });
 
-  describe('transact', function() {
-    it('should reject on invalid arguments', async function() {
+  describe('transact', function () {
+    it('should reject on invalid arguments', async function () {
       await assert.rejects(() => db.transact(), {name: 'Error', code: 'ARGUMENTS_INVALID'});
     });
 
-    it('should run the supplied function within a transaction (commit)', function(done) {
+    it('should run the supplied function within a transaction (commit)', function (done) {
       const statement = 'SELECT version()';
       const executed = [];
 
-      db.on('execFinish', function(data) {
+      db.on('execFinish', function (data) {
         if (data.err) {
           return;
         }
@@ -314,10 +302,10 @@ describe('lib/db', function() {
       db.transact(trExecOpts => db.exec(statement, trExecOpts)).catch(done);
     });
 
-    it('should run the supplied function within a transaction (rollback)', function(done) {
+    it('should run the supplied function within a transaction (rollback)', function (done) {
       const executed = [];
 
-      db.on('execFinish', function(data) {
+      db.on('execFinish', function (data) {
         if (data.err) {
           return;
         }
@@ -341,7 +329,7 @@ describe('lib/db', function() {
         });
     });
 
-    it('should reuse the supplied client', async function() {
+    it('should reuse the supplied client', async function () {
       const client = await pool.connect();
 
       await db.transact(trExecOpts => assert(trExecOpts.client === client), {client});
@@ -351,16 +339,16 @@ describe('lib/db', function() {
   });
 });
 
-describe('lib/model', function() {
-  describe('constructor', function() {
-    it('should assign passed properties to the created instance', function() {
+describe('lib/model', function () {
+  describe('constructor', function () {
+    it('should assign passed properties to the created instance', function () {
       const properties = {color: 'black'};
       const hat = new Hat(properties);
 
       assert(hat.color === properties.color);
     });
 
-    it('should use "generateId" static method to assign ids to instances', function() {
+    it('should use "generateId" static method to assign ids to instances', function () {
       const id = 1;
 
       class Fedora extends Hat {
@@ -375,8 +363,8 @@ describe('lib/model', function() {
     });
   });
 
-  describe('fromRow', function() {
-    it('should create a new instance from row', function() {
+  describe('fromRow', function () {
+    it('should create a new instance from row', function () {
       const row = {id: 1, created_at: new Date()};
       const hat = Hat.fromRow(row);
 
@@ -384,8 +372,8 @@ describe('lib/model', function() {
     });
   });
 
-  describe('exec', function() {
-    it('should throw if model is not linked to a DB', function() {
+  describe('exec', function () {
+    it('should throw if model is not linked to a DB', function () {
       class Test extends Model {
 
       }
@@ -393,7 +381,7 @@ describe('lib/model', function() {
       assert.throws(() => Test.exec({type: 'select'}), {name: 'Error', code: 'DB_MISSING'});
     });
 
-    it('should throw if model is not linked to a table', function() {
+    it('should throw if model is not linked to a table', function () {
       class Test extends Model {
         static get db() {
           return db;
@@ -403,11 +391,11 @@ describe('lib/model', function() {
       assert.throws(() => Test.exec({type: 'select'}), {name: 'Error', code: 'TABLE_MISSING'});
     });
 
-    it('should call db.exec with spec modified to point to model table', async function() {
+    it('should call db.exec with spec modified to point to model table', async function () {
       await resetDb();
 
       await new Promise((resolve, reject) => {
-        Hat.db.on('execFinish', function(data) {
+        Hat.db.on('execFinish', function (data) {
           if (data.err) {
             return;
           }
@@ -421,10 +409,10 @@ describe('lib/model', function() {
     });
   });
 
-  describe('.refreshColumns', function() {
+  describe('.refreshColumns', function () {
     beforeEach(resetDb);
 
-    it('should update the list of columns defined for the table', async function() {
+    it('should update the list of columns defined for the table', async function () {
       await Hat.refreshColumns();
 
       assert(Hat.columns.length === 4);
@@ -435,37 +423,41 @@ describe('lib/model', function() {
     });
   });
 
-  describe('.count', function() {
+  describe('.count', function () {
     beforeEach(resetDb);
 
-    it('should return the number of matched rows', async function() {
-      await pool.query(`INSERT INTO hats (color) VALUES ('black'), ('gray')`);
+    it('should return the number of matched rows', async function () {
+      await pool.query(`INSERT INTO hats (color)
+                        VALUES ('black'),
+                               ('gray')`);
 
       const count = await Hat.count({where: {color: 'black'}});
 
       assert(count === 1);
     });
 
-    it('should pass execOpts', function() {
-      const execOpts = {op: 'test'};
+    it('should pass ctx', function () {
+      const ctx = {op: 'test'};
 
-      Hat.db.on('execFinish', function(data) {
+      Hat.db.on('execFinish', function (data) {
         if (data.err) {
           return;
         }
 
-        assert(data.execOpts.op === execOpts.op);
+        assert(data.ctx.op === ctx.op);
       });
 
-      return Hat.count({}, execOpts);
+      return Hat.count({}, ctx);
     });
   });
 
-  describe('.find', function() {
+  describe('.find', function () {
     beforeEach(resetDb);
 
-    it('should find instance records', async function() {
-      await pool.query(`INSERT INTO hats (color) VALUES ('black'), ('gray')`);
+    it('should find instance records', async function () {
+      await pool.query(`INSERT INTO hats (color)
+                        VALUES ('black'),
+                               ('gray')`);
 
       const hats = await Hat.find({where: {color: 'black'}});
 
@@ -474,7 +466,7 @@ describe('lib/model', function() {
       assert(hats[0].color === 'black');
     });
 
-    it('should call .extend() for found instance records', async function() {
+    it('should call .extend() for found instance records', async function () {
       const extend = 'something';
 
       class Fedora extends Hat {
@@ -485,116 +477,130 @@ describe('lib/model', function() {
         }
       }
 
-      await pool.query(`INSERT INTO hats (color) VALUES ('black'), ('gray')`);
+      await pool.query(`INSERT INTO hats (color)
+                        VALUES ('black'),
+                               ('gray')`);
 
-      const fedoras = await Fedora.find({where: {color: 'black'}}, {extend});
+      const fedoras = await Fedora.find({where: {color: 'black'}, extend});
 
       assert(fedoras[0][extend] === true);
     });
 
-    it('should pass execOpts', function() {
-      const execOpts = {op: 'test'};
+    it('should pass ctx', function () {
+      const ctx = {op: 'test'};
 
-      Hat.db.on('execFinish', function(data) {
+      Hat.db.on('execFinish', function (data) {
         if (data.err) {
           return;
         }
 
-        assert(data.execOpts.op === execOpts.op);
+        assert(data.ctx.op === ctx.op);
       });
 
-      return Hat.find({}, execOpts);
+      return Hat.find({}, ctx);
     });
   });
 
-  describe('.findOne', function() {
+  describe('.findOne', function () {
     beforeEach(resetDb);
 
-    it('should find a single instance record', async function() {
-      await pool.query(`INSERT INTO hats (color) VALUES ('black'), ('gray')`);
+    it('should find a single instance record', async function () {
+      await pool.query(`INSERT INTO hats (color)
+                        VALUES ('black'),
+                               ('gray')`);
       const hat = await Hat.findOne();
 
       assert(['black', 'gray'].includes(hat.color));
     });
 
-    it('should pass execOpts', function() {
-      const execOpts = {op: 'test'};
+    it('should pass ctx', function () {
+      const ctx = {op: 'test'};
 
-      Hat.db.on('execFinish', function(data) {
+      Hat.db.on('execFinish', function (data) {
         if (data.err) {
           return;
         }
 
-        assert(data.execOpts.op === execOpts.op);
+        assert(data.ctx.op === ctx.op);
       });
 
-      return Hat.findOne({}, execOpts);
+      return Hat.findOne({}, ctx);
     });
   });
 
-  describe('.findById', function() {
+  describe('.findById', function () {
     beforeEach(resetDb);
 
-    it('should throw if id argument is not supplied', function() {
+    it('should throw if id argument is not supplied', function () {
       assert.throws(() => Hat.findById(), {name: 'Error', code: 'ARGUMENTS_INVALID'});
     });
 
-    it('should find an instance record by id', async function() {
-      await pool.query(`INSERT INTO hats (color) VALUES ('black'), ('gray')`);
-      const id = (await pool.query(`SELECT id FROM hats WHERE color = 'black'`)).rows[0].id;
+    it('should find an instance record by id', async function () {
+      await pool.query(`INSERT INTO hats (color)
+                        VALUES ('black'),
+                               ('gray')`);
+      const id = (await pool.query(`SELECT id
+                                    FROM hats
+                                    WHERE color = 'black'`)).rows[0].id;
       const hat = await Hat.findById(id);
 
       assert(hat.color === 'black');
     });
 
-    it('should pass execOpts', function() {
-      const execOpts = {op: 'test'};
+    it('should pass ctx', function () {
+      const ctx = {op: 'test'};
 
-      Hat.db.on('execFinish', function(data) {
+      Hat.db.on('execFinish', function (data) {
         if (data.err) {
           return;
         }
 
-        assert(data.execOpts.op === execOpts.op);
+        assert(data.ctx.op === ctx.op);
       });
 
-      return Hat.findById(1, execOpts);
+      return Hat.findById(1, ctx);
     });
   });
 
-  describe('.update', function() {
+  describe('.update', function () {
     beforeEach(resetDb);
 
-    it('should update instance records', async function() {
+    it('should update instance records', async function () {
       const color = 'red';
-      await pool.query(`INSERT INTO hats (color) VALUES ('black'), ('gray')`);
+      await pool.query(`INSERT INTO hats (color)
+                        VALUES ('black'),
+                               ('gray')`);
       await Hat.update({where: {color: 'black'}, values: {color}});
 
-      const result = await pool.query(`SELECT count(*) FROM hats WHERE color = '${color}'`);
+      const result = await pool.query(`SELECT count(*)
+                                       FROM hats
+                                       WHERE color = '${color}'`);
 
       assert(result.rows[0].count === '1');
     });
 
-    it('should pass execOpts', function() {
-      const execOpts = {op: 'test'};
+    it('should pass ctx', function () {
+      const ctx = {op: 'test'};
 
-      Hat.db.on('execFinish', function(data) {
+      Hat.db.on('execFinish', function (data) {
         if (data.err) {
           return;
         }
 
-        assert(data.execOpts.op === execOpts.op);
+        assert(data.ctx.op === ctx.op);
       });
 
-      return Hat.update({where: {color: 'black'}, values: {color: 'red'}}, execOpts);
+      return Hat.update({where: {color: 'black'}, values: {color: 'red'}}, ctx);
     });
   });
 
-  describe('.delete', function() {
+  describe('.delete', function () {
     beforeEach(resetDb);
 
-    it('should delete instance records', async function() {
-      await pool.query(`INSERT INTO hats (color) VALUES ('black'), ('gray')`);
+    it('should delete instance records', async function () {
+      await pool.query(`INSERT INTO hats (color)
+                        VALUES ('black'),
+                               ('gray')`);
       await Hat.delete({where: {color: 'black'}});
 
       const result = await pool.query('SELECT * FROM hats');
@@ -603,51 +609,52 @@ describe('lib/model', function() {
       assert(result.rows[0].color === 'gray');
     });
 
-    it('should pass execOpts', function() {
-      const execOpts = {op: 'test'};
+    it('should pass ctx', function () {
+      const ctx = {op: 'test'};
 
-      Hat.db.on('execFinish', function(data) {
+      Hat.db.on('execFinish', function (data) {
         if (data.err) {
           return;
         }
 
-        assert(data.execOpts.op === execOpts.op);
+        assert(data.ctx.op === ctx.op);
       });
 
-      return Hat.delete({}, execOpts);
+      return Hat.delete({}, ctx);
     });
   });
 
-  describe('.extend', function() {
+  describe('.extend', function () {
     beforeEach(resetDb);
 
     const delay = 25;
 
     class Fedora extends Hat {
-      static get extenders() {
-        return {
-          randomNumber: instances => {
-            instances.forEach(instance => instance.randomNumber = Math.random());
-          },
-          execOpts: (instances, execOpts) => {
-            instances.forEach(instance => instance.execOpts = execOpts);
-          },
-          delay: instances => {
-            return new Promise(resolve => {
-              setTimeout(() => {
-                instances.forEach(instance => instance.delay = delay);
-                resolve();
-              }, delay);
-            });
-          },
-          isDelayed: instances => {
-            instances.forEach(instance => instance.isDelayed = instance.delay === delay);
-          }
-        };
-      }
+      static extenders = {
+        randomNumber: instances => {
+          instances.forEach(instance => instance.randomNumber = Math.random());
+        },
+        deepExtending: (instances, extend) => {
+          instances.forEach(instance => instance.deepExtending = extend);
+        },
+        delay: instances => {
+          return new Promise(resolve => {
+            setTimeout(() => {
+              instances.forEach(instance => instance.delay = delay);
+              resolve();
+            }, delay);
+          });
+        },
+        isDelayed: instances => {
+          instances.forEach(instance => instance.isDelayed = instance.delay === delay);
+        },
+        incrementedCounter: instances => {
+          instances.forEach(instance => instance.incrementedCounter = (instance.incrementedCounter || 0) + 1);
+        },
+      };
     }
 
-    it('should apply extenders to instances (string notation)', async function() {
+    it('should apply extenders to instances (string notation)', async function () {
       const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
 
       await Fedora.extend(fedoras, 'randomNumber');
@@ -655,40 +662,57 @@ describe('lib/model', function() {
       assert(fedoras.every(fedora => typeof fedora.randomNumber === 'number'));
     });
 
-    it('should apply extenders to instances (array notation)', async function() {
+    it('should apply extenders to instances (array notation)', async function () {
       const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
 
-      await Fedora.extend(fedoras, ['randomNumber', 'execOpts']);
+      await Fedora.extend(fedoras, ['randomNumber']);
 
       assert(fedoras.every(fedora => typeof fedora.randomNumber === 'number'));
-      assert(fedoras.every(fedora => typeof fedora.execOpts === 'object'));
     });
 
-    it('should pass the list properties to extend further', async function() {
+    it('should pass the list properties to extend further', async function () {
       const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
 
-      await Fedora.extend(fedoras, 'execOpts.deep.deeper');
+      await Fedora.extend(fedoras, 'deepExtending.deep.deeper');
 
-      assert(_.isEqual(fedoras[0].execOpts.extend, ['deep.deeper']));
+      assert(_.isEqual(fedoras[0].deepExtending, ['deep.deeper']));
     });
 
-    it('should not reject if extender does not exist', async function() {
+    it('should not reject if extender does not exist', async function () {
       const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
 
       await assert.doesNotReject(() => Fedora.extend(fedoras, 'missing'));
     });
 
-    it('waits for the previous extender to finish', async function() {
+    it('waits for the previous extender to finish', async function () {
       const fedoras = [new Fedora({color: 'black'})];
 
       await Fedora.extend(fedoras, ['delay', 'isDelayed']);
 
       assert(fedoras.every(fedora => fedora.isDelayed));
     });
+
+    it('does not extend fully extended paths twice', async function () {
+      const fedora = new Fedora();
+
+      await Fedora.extend([fedora], ['incrementedCounter']);
+      await Fedora.extend([fedora], ['incrementedCounter']);
+
+      assert(fedora.incrementedCounter === 1);
+    });
+
+    it('extends partically extended paths each time', async function () {
+      const fedora = new Fedora();
+
+      await Fedora.extend([fedora], ['incrementedCounter']);
+      await Fedora.extend([fedora], ['incrementedCounter.deeper']);
+
+      assert(fedora.incrementedCounter === 2);
+    });
   });
 
-  describe('#set', function() {
-    it('should assign instance properties (k, v signature)', function() {
+  describe('#set', function () {
+    it('should assign instance properties (k, v signature)', function () {
       const hat = new Hat();
       const result = hat.set('color', 'black');
 
@@ -696,7 +720,7 @@ describe('lib/model', function() {
       assert(hat.color === 'black');
     });
 
-    it('should assign instance properties (object signature)', function() {
+    it('should assign instance properties (object signature)', function () {
       const hat = new Hat();
       const result = hat.set({color: 'black'});
 
@@ -705,10 +729,10 @@ describe('lib/model', function() {
     });
   });
 
-  describe('#save', function() {
+  describe('#save', function () {
     beforeEach(resetDb);
 
-    it('should refresh columns before saving', async function() {
+    it('should refresh columns before saving', async function () {
       delete Hat.columns;
 
       const hat = new Hat({color: 'black'});
@@ -718,13 +742,13 @@ describe('lib/model', function() {
       assert(Hat.columns.length === 4);
     });
 
-    it('should not reject when saving with properties that do not have matching columns', async function() {
+    it('should not reject when saving with properties that do not have matching columns', async function () {
       const hat = new Hat({color: 'black', hasFeathers: true});
 
       await assert.doesNotReject(() => hat.save());
     });
 
-    it('should save instance record and assign properties set by the DB', async function() {
+    it('should save instance record and assign properties set by the DB', async function () {
       const createdAt = new Date();
       const hat = new Hat({color: 'black', createdAt});
 
@@ -737,7 +761,7 @@ describe('lib/model', function() {
       assert(result.rows[0].created_at.getTime() === createdAt.getTime());
     });
 
-    it('should save an instance with no properties supplied', async function() {
+    it('should save an instance with no properties supplied', async function () {
       const hat = new Hat();
 
       await hat.save();
@@ -745,13 +769,13 @@ describe('lib/model', function() {
       assert(typeof hat.id === 'number');
     });
 
-    it('rejects when supplied with invalid mode', async function() {
+    it('rejects when supplied with invalid mode', async function () {
       const hat = new Hat({color: 'black'});
 
       await assert.rejects(() => hat.save('overwrite'), err => err.code === 'MODE_INVALID');
     });
 
-    it('creates a record in the "insert" mode', async function() {
+    it('creates a record in the "insert" mode', async function () {
       const hat = new Hat({id: 1, color: 'black'});
 
       await hat.save('insert');
@@ -763,7 +787,7 @@ describe('lib/model', function() {
       assert(result.rows[0].color === 'black');
     });
 
-    it('rejects when trying to overwrite in the "insert" mode', async function() {
+    it('rejects when trying to overwrite in the "insert" mode', async function () {
       const hat1 = new Hat({id: 1, color: 'black'});
       const hat2 = new Hat({id: 1, color: 'gray'});
 
@@ -772,7 +796,7 @@ describe('lib/model', function() {
       await assert.rejects(() => hat2.save('insert'));
     });
 
-    it('changes a record in the "update" mode', async function() {
+    it('changes a record in the "update" mode', async function () {
       const hat1 = new Hat({id: 1, color: 'black'});
       const hat2 = new Hat({id: 1, color: 'gray'});
 
@@ -786,13 +810,13 @@ describe('lib/model', function() {
       assert(result.rows[0].color === 'gray');
     });
 
-    it('rejects when trying to update non-existing in the "update" mode', async function() {
+    it('rejects when trying to update non-existing in the "update" mode', async function () {
       const hat = new Hat({id: 1, color: 'black'});
 
       await assert.rejects(() => hat.save('update'), err => err.code === 'NOT_FOUND');
     });
 
-    it('creates a record in the "upsert" mode', async function() {
+    it('creates a record in the "upsert" mode', async function () {
       const hat = new Hat({color: 'black'});
 
       await hat.save('upsert');
@@ -804,7 +828,7 @@ describe('lib/model', function() {
       assert(result.rows[0].color === 'black');
     });
 
-    it('changes a record in the "upsert" mode', async function() {
+    it('changes a record in the "upsert" mode', async function () {
       const hat1 = new Hat({id: 1, color: 'black'});
       const hat2 = new Hat({id: 1, color: 'gray'});
 
@@ -818,7 +842,7 @@ describe('lib/model', function() {
       assert(result.rows[0].color === 'gray');
     });
 
-    it('uses the "upsert" mode by default', async function() {
+    it('uses the "upsert" mode by default', async function () {
       const hat1 = new Hat({id: 1, color: 'black'});
       const hat2 = new Hat({id: 1, color: 'gray'});
       const hat3 = new Hat({id: 2, color: 'green'});
@@ -827,7 +851,7 @@ describe('lib/model', function() {
       await hat2.save();
       await hat3.save();
 
-      const result = await pool.query('SELECT * FROM hats ORDER BY id ASC');
+      const result = await pool.query('SELECT * FROM hats ORDER BY id');
 
       assert(result.rows.length === 2);
       assert(result.rows[0].id === 1);
@@ -836,24 +860,24 @@ describe('lib/model', function() {
       assert(result.rows[1].color === 'green');
     });
 
-    it('should pass execOpts', function() {
-      const execOpts = {op: 'test'};
+    it('should pass ctx', function () {
+      const ctx = {op: 'test'};
 
-      Hat.db.on('execFinish', function(data) {
+      Hat.db.on('execFinish', function (data) {
         if (data.err || data.spec.table !== Hat.table) {
           return;
         }
 
-        assert(data.execOpts.op === execOpts.op);
+        assert(data.ctx.op === ctx.op);
       });
 
       const hat = new Hat({color: 'black'});
 
-      return hat.save(execOpts);
+      return hat.save(ctx);
     });
 
     // https://github.com/goodybag/mongo-sql/issues/190
-    it('should save properties that are objects with "type" key set', async function() {
+    it('should save properties that are objects with "type" key set', async function () {
       const hat = new Hat({data: {type: 'magic'}});
 
       await assert.doesNotReject(() => hat.save());
@@ -864,56 +888,57 @@ describe('lib/model', function() {
     });
   });
 
-  describe('#insert', function() {
+  describe('#insert', function () {
     beforeEach(resetDb);
 
-    it('calls #save using the "insert" mode', async function() {
+    it('calls #save using the "insert" mode', async function () {
       const stub = sinon.stub(Model.prototype, 'save');
 
-      const execOpts = {op: 'insert'};
+      const ctx = {op: 'insert'};
       const hat = new Hat({color: 'black'});
 
-      await hat.insert(execOpts);
+      await hat.insert(ctx);
 
-      assert(stub.calledOnceWith('insert', execOpts));
+      assert(stub.calledOnceWith('insert', ctx));
     });
   });
 
-  describe('#update', function() {
+  describe('#update', function () {
     beforeEach(resetDb);
 
-    it('calls #save using the "update" mode', async function() {
+    it('calls #save using the "update" mode', async function () {
       const stub = sinon.stub(Model.prototype, 'save');
 
-      const execOpts = {op: 'update'};
+      const ctx = {op: 'update'};
       const hat = new Hat({color: 'black'});
 
-      await hat.update(execOpts);
+      await hat.update(ctx);
 
-      assert(stub.calledOnceWith('update', execOpts));
+      assert(stub.calledOnceWith('update', ctx));
     });
   });
 
-  describe('#upsert', function() {
+  describe('#upsert', function () {
     beforeEach(resetDb);
 
-    it('calls #save using the "upsert" mode', async function() {
+    it('calls #save using the "upsert" mode', async function () {
       const stub = sinon.stub(Model.prototype, 'save');
 
-      const execOpts = {op: 'upsert'};
+      const ctx = {op: 'upsert'};
       const hat = new Hat({color: 'black'});
 
-      await hat.upsert(execOpts);
+      await hat.upsert(ctx);
 
-      assert(stub.calledOnceWith('upsert', execOpts));
+      assert(stub.calledOnceWith('upsert', ctx));
     });
   });
 
-  describe('#delete', function() {
+  describe('#delete', function () {
     beforeEach(resetDb);
 
-    it('should delete the instance', async function() {
-      await pool.query(`INSERT INTO hats (color) VALUES ('black')`);
+    it('should delete the instance', async function () {
+      await pool.query(`INSERT INTO hats (color)
+                        VALUES ('black')`);
 
       const hat = await Hat.findOne({color: 'black'});
 
@@ -924,27 +949,27 @@ describe('lib/model', function() {
       assert(result.rows[0].count === '0');
     });
 
-    it('should pass execOpts', function() {
-      const execOpts = {op: 'test'};
+    it('should pass ctx', function () {
+      const ctx = {op: 'test'};
 
-      Hat.db.on('execFinish', function(data) {
+      Hat.db.on('execFinish', function (data) {
         if (data.err) {
           return;
         }
 
-        assert(data.execOpts.op === execOpts.op);
+        assert(data.ctx.op === ctx.op);
       });
 
       const hat = new Hat({id: 1});
 
-      return hat.delete(execOpts);
+      return hat.delete(ctx);
     });
   });
 
-  describe('#extend', function() {
+  describe('#extend', function () {
     beforeEach(resetDb);
 
-    it('should call .extend() for the instance', async function() {
+    it('should call .extend() for the instance', async function () {
       const extend = 'something';
 
       class Fedora extends Hat {
@@ -955,7 +980,8 @@ describe('lib/model', function() {
         }
       }
 
-      await pool.query(`INSERT INTO hats (color) VALUES ('black')`);
+      await pool.query(`INSERT INTO hats (color)
+                        VALUES ('black')`);
 
       const fedora = await Fedora.findOne({where: {color: 'black'}});
 
@@ -964,13 +990,13 @@ describe('lib/model', function() {
       assert(fedora[extend] === true);
     });
 
-    it('should pass execOpts', function() {
+    it('should pass ctx', function () {
       const extend = 'something';
-      const execOpts = {op: 'test'};
+      const ctx = {op: 'test'};
 
       class Fedora extends Hat {
-        static extend(instances, properties, extenderExecOpts = {}) {
-          assert(extenderExecOpts.op === execOpts.op);
+        static extend(instances, properties, extenderCtx = {}) {
+          assert(extenderCtx.op === ctx.op);
 
           return Promise.resolve();
         }
@@ -978,32 +1004,30 @@ describe('lib/model', function() {
 
       const fedora = new Fedora({id: 1});
 
-      return fedora.extend(extend, execOpts);
+      return fedora.extend(extend, ctx);
     });
   });
 });
 
-describe('link-models', function() {
+describe('link-models', function () {
   before(resetDb);
 
-  describe('getReferences', function() {
-    it('should return empty list if models are not specified', async function() {
+  describe('getReferences', function () {
+    it('should return empty list if models are not specified', async function () {
       const references = await linkModels.getReferences();
 
       assert(references.length === 0);
     });
 
-    it('should return empty list if the list of models is empty', async function() {
+    it('should return empty list if the list of models is empty', async function () {
       const references = await linkModels.getReferences({models: []});
 
       assert(references.length === 0);
     });
 
-    it('should reject if one of the models does not have a DB assigned', async function() {
+    it('should reject if one of the models does not have a DB assigned', async function () {
       class Fedora extends Hat {
-        static get db() {
-          return null;
-        }
+        static db = null;
       }
 
       await assert.rejects(
@@ -1012,20 +1036,18 @@ describe('link-models', function() {
       );
     });
 
-    it('should reject if models do not share the same DB', async function() {
+    it('should reject if models do not share the same DB', async function () {
       class Fedora extends Hat {
-        static get db() {
-          return null;
-        }
+        static db = null;
       }
 
-      await assert.rejects(() => linkModels.getReferences({models: [Hat, Fedora]}), {
-        name: 'Error',
-        code: 'ARGUMENTS_INVALID'
-      });
+      await assert.rejects(
+        () => linkModels.getReferences({models: [Hat, Fedora]}),
+        {name: 'Error', code: 'ARGUMENTS_INVALID'}
+      );
     });
 
-    it('should discover references between model tables', async function() {
+    it('should discover references between model tables', async function () {
       const references = await linkModels.getReferences({models: [Hat, User]});
 
       assert(references.length === 1);
@@ -1036,12 +1058,12 @@ describe('link-models', function() {
     });
   });
 
-  describe('link', function() {
-    it('should not reject if models are not supplied', async function() {
+  describe('link', function () {
+    it('should not reject if models are not supplied', async function () {
       await assert.doesNotReject(() => linkModels.link());
     });
 
-    it('should add extenders that help discovering model relationships', async function() {
+    it('should add extenders that help discovering model relationships', async function () {
       class Fedora extends Hat {
 
       }
@@ -1066,6 +1088,9 @@ describe('link-models', function() {
       const manager = new Manager({hatId: fedora.id});
 
       await manager.save();
+
+      delete fedora.isReferenced;
+
       await fedora.extend('isReferenced');
       await manager.extend('hat');
 
@@ -1073,7 +1098,7 @@ describe('link-models', function() {
       assert(manager.hat.id === fedora.id);
     });
 
-    it('should preserve existing extenders', async function() {
+    it('should preserve existing extenders', async function () {
       class Fedora extends Hat {
 
       }
@@ -1088,31 +1113,31 @@ describe('link-models', function() {
       assert(typeof Fedora.extenders.existing === 'function');
     });
 
-    it('should pass execOpts', function(done) {
+    it('should pass ctx', function (done) {
       class Fedora extends Hat {
 
       }
 
-      db.on('execFinish', function(data) {
+      db.on('execFinish', function (data) {
         if (data.err) {
           return;
         }
 
-        assert(data.execOpts.log === false);
+        assert(data.ctx.log === false);
         done();
       });
 
-      linkModels.link({models: [Fedora], execOpts: {log: false}}).catch(done);
+      linkModels.link({models: [Fedora], ctx: {log: false}}).catch(done);
     });
   });
 });
 
-describe('index', function() {
-  it('should expose Db, Model, linkModels', function() {
-    const index = require('../index');
+describe('index', function () {
+  it('should expose Db, Model, linkModels', async function () {
+    const exported = await import('../index.js');
 
-    assert(index.Db === Db);
-    assert(index.Model === Model);
-    assert(index.linkModels === linkModels);
+    assert(exported.Db === Db);
+    assert(exported.Model === Model);
+    assert(exported.linkModels === linkModels);
   });
 });

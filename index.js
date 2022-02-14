@@ -1,5 +1,3 @@
-module.exports = {
-  Db: require('./lib/db'),
-  Model: require('./lib/model'),
-  linkModels: require('./lib/link-models')
-};
+export {default as Db} from './lib/db.js';
+export {default as Model} from './lib/model.js';
+export * as linkModels from './lib/link-models.js';

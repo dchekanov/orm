@@ -2,6 +2,15 @@
 
 ## 6.0.0
 
+* .findById has been dropped in favor of .findOne({where: {id}}).
+* Extenders must be listed as an array.
+* Attempt to use a non-existing extender now causes an error.
+* pg module is exposed to allow customization. 
+* PostgreSQL 15 and Node.js 18 have been added to the test matrix.
+* Updated dependencies.
+
+## 6.0.0-beta
+
 * Converted to ESM.
 * Dropped Node.js 12 support.
 * Dropped SonarQube scanning.

@@ -149,13 +149,6 @@ User.find({where: {email: {$notNull: true}}});
 User.findOne({where: {email: {$notNull: true}}});
 ```
 
-#### .findById(id, ctx) async
-
-```javascript
-// find instance record by id
-User.findById({where: {email: {$notNull: true}}});
-```
-
 #### .update(spec, ctx) async
 
 ```javascript

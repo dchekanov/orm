@@ -2,10 +2,10 @@ import dotenv from 'dotenv';
 import assert from 'assert';
 import fs from 'fs';
 import _ from 'lodash';
-import pg from 'pg';
+import {pg} from '../index.js';
 import sinon from 'sinon';
 import * as convertKeys from '../lib/convert-keys.js';
-import * as linkModels from '../lib/link-models.js';
+import * as linkModels from '../lib/utils.js';
 import Db from '../lib/db.js';
 import Model from '../lib/model.js';
 
@@ -481,7 +481,7 @@ describe('lib/model', function () {
                         VALUES ('black'),
                                ('gray')`);
 
-      const fedoras = await Fedora.find({where: {color: 'black'}, extend});
+      const fedoras = await Fedora.find({where: {color: 'black'}, extend: [extend]});
 
       assert(fedoras[0][extend] === true);
     });
@@ -525,40 +525,6 @@ describe('lib/model', function () {
       });
 
       return Hat.findOne({}, ctx);
-    });
-  });
-
-  describe('.findById', function () {
-    beforeEach(resetDb);
-
-    it('should throw if id argument is not supplied', function () {
-      assert.throws(() => Hat.findById(), {name: 'Error', code: 'ARGUMENTS_INVALID'});
-    });
-
-    it('should find an instance record by id', async function () {
-      await pool.query(`INSERT INTO hats (color)
-                        VALUES ('black'),
-                               ('gray')`);
-      const id = (await pool.query(`SELECT id
-                                    FROM hats
-                                    WHERE color = 'black'`)).rows[0].id;
-      const hat = await Hat.findById(id);
-
-      assert(hat.color === 'black');
-    });
-
-    it('should pass ctx', function () {
-      const ctx = {op: 'test'};
-
-      Hat.db.on('execFinish', function (data) {
-        if (data.err) {
-          return;
-        }
-
-        assert(data.ctx.op === ctx.op);
-      });
-
-      return Hat.findById(1, ctx);
     });
   });
 
@@ -654,15 +620,7 @@ describe('lib/model', function () {
       };
     }
 
-    it('should apply extenders to instances (string notation)', async function () {
-      const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
-
-      await Fedora.extend(fedoras, 'randomNumber');
-
-      assert(fedoras.every(fedora => typeof fedora.randomNumber === 'number'));
-    });
-
-    it('should apply extenders to instances (array notation)', async function () {
+    it('should apply extenders to instances', async function () {
       const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
 
       await Fedora.extend(fedoras, ['randomNumber']);
@@ -670,18 +628,30 @@ describe('lib/model', function () {
       assert(fedoras.every(fedora => typeof fedora.randomNumber === 'number'));
     });
 
+    it('should only accept arrays for the list of properties', async function () {
+      const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
+
+      await assert.rejects(
+        () => Fedora.extend(fedoras, 'randomNumber'),
+        err => err.code === 'PROPERTIES_INVALID'
+      );
+    });
+
     it('should pass the list properties to extend further', async function () {
       const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
 
-      await Fedora.extend(fedoras, 'deepExtending.deep.deeper');
+      await Fedora.extend(fedoras, ['deepExtending.deep.deeper']);
 
       assert(_.isEqual(fedoras[0].deepExtending, ['deep.deeper']));
     });
 
-    it('should not reject if extender does not exist', async function () {
+    it('rejects if extender does not exist', async function () {
       const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
 
-      await assert.doesNotReject(() => Fedora.extend(fedoras, 'missing'));
+      await assert.rejects(
+        () => Fedora.extend(fedoras, ['missing']),
+        err => err.code === 'EXTENDER_MISSING'
+      );
     });
 
     it('waits for the previous extender to finish', async function () {
@@ -985,7 +955,7 @@ describe('lib/model', function () {
 
       const fedora = await Fedora.findOne({where: {color: 'black'}});
 
-      await fedora.extend(extend);
+      await fedora.extend([extend]);
 
       assert(fedora[extend] === true);
     });
@@ -1004,7 +974,7 @@ describe('lib/model', function () {
 
       const fedora = new Fedora({id: 1});
 
-      return fedora.extend(extend, ctx);
+      return fedora.extend([extend], ctx);
     });
   });
 });
@@ -1081,7 +1051,7 @@ describe('link-models', function () {
       const fedora = new Fedora({color: 'black'});
 
       await fedora.save();
-      await fedora.extend('isReferenced');
+      await fedora.extend(['isReferenced']);
 
       assert(fedora.isReferenced === false);
 
@@ -1091,8 +1061,8 @@ describe('link-models', function () {
 
       delete fedora.isReferenced;
 
-      await fedora.extend('isReferenced');
-      await manager.extend('hat');
+      await fedora.extend(['isReferenced']);
+      await manager.extend(['hat']);
 
       assert(fedora.isReferenced === true);
       assert(manager.hat.id === fedora.id);
@@ -1133,11 +1103,12 @@ describe('link-models', function () {
 });
 
 describe('index', function () {
-  it('should expose Db, Model, linkModels', async function () {
+  it('should expose Db, Model, linkModels, pg', async function () {
     const exported = await import('../index.js');
 
     assert(exported.Db === Db);
     assert(exported.Model === Model);
     assert(exported.linkModels === linkModels);
+    assert(exported.pg === pg);
   });
 });

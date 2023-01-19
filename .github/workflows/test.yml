@@ -12,8 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node: [ 14, 16 ]
-        pg: [ 10, 11, 12, 13, 14 ]
+        node: [ 14, 16, 18 ]
+        pg: [ 10, 11, 12, 13, 14, 15 ]
     steps:
       - uses: actions/checkout@v1
         with:

@@ -1,5 +1,11 @@
 # Changelog
 
+## 7.0.0
+
+* Dropped support for Node.js 14 and PostgreSQL 10.
+* Added support for Node.js 20.
+* Updated dependencies.
+
 ## 6.0.0
 
 * .findById has been dropped in favor of .findOne({where: {id}}).

@@ -1,7 +1,7 @@
 # @keleran/orm
 
 PostgreSQL ORM bits for Node.js projects.  
-Use ESM, require Node.js 14+ and PostgreSQL 10+.
+Use ESM, require Node.js 16+ and PostgreSQL 11+.
 
 ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/dchekanov/orm/Test)
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 8.0.0
+* Fixed deep extending resetting previous deep extends.
+* Extenders no longer receive "extend" parameter to push down the line.
+* Updated dependencies.
+
 ## 7.0.0
 
 * Dropped support for Node.js 14 and PostgreSQL 10.

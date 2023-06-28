@@ -595,13 +595,21 @@ describe('lib/model', function () {
 
     const delay = 25;
 
-    class Fedora extends Hat {
+    class Nested extends Model {
       static extenders = {
         randomNumber: instances => {
           instances.forEach(instance => instance.randomNumber = Math.random());
         },
-        deepExtending: (instances, extend) => {
-          instances.forEach(instance => instance.deepExtending = extend);
+        incrementedCounter: instances => {
+          instances.forEach(instance => instance.incrementedCounter = (instance.incrementedCounter || 0) + 1);
+        }
+      };
+    }
+
+    class Fedora extends Hat {
+      static extenders = {
+        randomNumber: instances => {
+          instances.forEach(instance => instance.randomNumber = Math.random());
         },
         delay: instances => {
           return new Promise(resolve => {
@@ -617,6 +625,26 @@ describe('lib/model', function () {
         incrementedCounter: instances => {
           instances.forEach(instance => instance.incrementedCounter = (instance.incrementedCounter || 0) + 1);
         },
+        nested: instances => {
+          instances.forEach(instance => {
+            // shouldn't happen
+            if (instance.nested) {
+              throw new Error('Already extended');
+            }
+
+            instance.nested = new Nested();
+          });
+        },
+        nestedArray: instances => {
+          instances.forEach(instance => {
+            // shouldn't happen
+            if (instance.nestedArray) {
+              throw new Error('Already extended');
+            }
+
+            instance.nestedArray = [new Nested(), new Nested()];
+          });
+        }
       };
     }
 
@@ -637,14 +665,6 @@ describe('lib/model', function () {
       );
     });
 
-    it('should pass the list properties to extend further', async function () {
-      const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
-
-      await Fedora.extend(fedoras, ['deepExtending.deep.deeper']);
-
-      assert(_.isEqual(fedoras[0].deepExtending, ['deep.deeper']));
-    });
-
     it('rejects if extender does not exist', async function () {
       const fedoras = [new Fedora({color: 'black'}), new Fedora({color: 'gray'})];
 
@@ -662,7 +682,7 @@ describe('lib/model', function () {
       assert(fedoras.every(fedora => fedora.isDelayed));
     });
 
-    it('does not extend fully extended paths twice', async function () {
+    it('does not extend twice', async function () {
       const fedora = new Fedora();
 
       await Fedora.extend([fedora], ['incrementedCounter']);
@@ -671,13 +691,17 @@ describe('lib/model', function () {
       assert(fedora.incrementedCounter === 1);
     });
 
-    it('extends partically extended paths each time', async function () {
+    it('extends deep correctly', async function () {
       const fedora = new Fedora();
 
-      await Fedora.extend([fedora], ['incrementedCounter']);
-      await Fedora.extend([fedora], ['incrementedCounter.deeper']);
+      await Fedora.extend([fedora], ['nested.incrementedCounter']);
+      await Fedora.extend([fedora], ['nested.incrementedCounter']);
+      await Fedora.extend([fedora], ['nested.randomNumber']);
+      await Fedora.extend([fedora], ['nestedArray.randomNumber']);
 
-      assert(fedora.incrementedCounter === 2);
+      assert(fedora.nested.incrementedCounter === 1);
+      assert(typeof fedora.nested.randomNumber === 'number');
+      assert(fedora.nestedArray.every(nested => typeof nested.randomNumber === 'number'));
     });
   });
 

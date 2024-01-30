@@ -1,5 +1,9 @@
 # Changelog
 
+## 8.0.1
+* Fixed corruption of Buffer objects.
+* Updated dependencies.
+
 ## 8.0.0
 * Fixed deep extending resetting previous deep extends.
 * Extenders no longer receive "extend" parameter to push down the line.

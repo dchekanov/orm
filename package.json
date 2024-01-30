@@ -1,6 +1,6 @@
 {
   "name": "@keleran/orm",
-  "version": "8.0.0",
+  "version": "8.0.1",
   "description": "PostgreSQL ORM toolkit for Node.js projects",
   "files": [
     "index.js",
@@ -36,11 +36,11 @@
     "pg": "^8.7.1"
   },
   "devDependencies": {
-    "c8": "^8.0.0",
+    "c8": "^9.1.0",
     "dotenv": "^16.0.0",
     "eslint": "^8.8.0",
     "mocha": "^10.1.0",
-    "sinon": "^15.0.1"
+    "sinon": "^17.0.1"
   },
   "keywords": [
     "orm",

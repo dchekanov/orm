@@ -71,7 +71,8 @@ describe('lib/convert-keys', function () {
           ]
         },
         propNull: null,
-        propDate: new Date()
+        propDate: new Date(),
+        buffer: Buffer.from('test')
       };
 
       const row = convertKeys.toSnakeCaseDeep(object);
@@ -85,6 +86,7 @@ describe('lib/convert-keys', function () {
       assert(row.prop_c.prop_e[2] === object.propC.propE[2]);
       assert(row.prop_null === object.propNull);
       assert(row.prop_date.getTime() === object.propDate.getTime());
+      assert(row.buffer.compare(Buffer.from('test')) === 0);
     });
 
     it('should support array input', function () {

@@ -1,6 +1,6 @@
 {
   "name": "@keleran/orm",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "description": "PostgreSQL ORM toolkit for Node.js projects",
   "files": [
     "index.js",

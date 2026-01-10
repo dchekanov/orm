@@ -1,9 +1,7 @@
 # @keleran/orm
 
 PostgreSQL ORM bits for Node.js projects.  
-Use ESM, require Node.js 16+ and PostgreSQL 11+.
-
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/dchekanov/orm/Test)
+Works with Node.js 20+, PostgreSQL 14+.
 
 ## Installation
 
@@ -14,7 +12,7 @@ $ npm i @keleran/orm
 ## Usage
 
 ```javascript
-import {Db, Model, linkModels} from '@keleran/orm';
+import { Db, Model, linkModels } from '@keleran/orm';
 ```
 
 ### Db class
@@ -27,17 +25,17 @@ Supports raw SQL and transactions.
 ```javascript
 // no options = a new pg.Pool with default options will be created
 const db = new Db();
-// poolOptions to use instead of the default ones can be supplied 
-const db = new Db({poolOptions: {max: 5}});
+// poolOptions to use instead of the default ones can be supplied
+const db = new Db({ poolOptions: { max: 5 } });
 // an existing pool can be supplied as well
-const db = new Db({pool});
+const db = new Db({ pool });
 // it's best to listen to db.pool's "error" event so that it doesn't crash the app
 db.pool.on('error', console.log);
 // call db.pool.end() during graceful shutdown
 db.pool.end().then(() => process.exit());
 ```
 
-#### #exec(*) async
+#### #exec(\*) async
 
 ```javascript
 // statement as plain string
@@ -46,39 +44,39 @@ db.exec('SELECT version()');
 db.exec('INSERT INTO users (email) VALUES ($1)', ['test@example.com']);
 // statement in the MoSQL format
 // column names MUST be in snake_case
-// keys of "values", "where", and "order" objects and of their children will be converted to snake_case before executing 
-db.exec({type: 'select', table: 'users'});
+// keys of "values", "where", and "order" objects and of their children will be converted to snake_case before executing
+db.exec({ type: 'select', table: 'users' });
 // an additional argument can be supplied to pass context
 // works with all signatures, must be added as the last argument
 // "client" is reserved for internal use, others can be supplied to implement custom functionality (see below)
 ```
 
-Db instance emits "execFinish" event when #exec() finishes (either successfully or not). This can be used for logging:
+Db instance emits the "execFinish" event when #exec() finishes (either successfully or not). This can be used for logging:
 
 ```javascript
-db.on('execFinish', data => {
+db.on('execFinish', (data) => {
   if (data.ctx.log === true) {
-    // statement, values, result/err, and more 
+    // statement, values, result/err, and more
     console.log(data);
   }
 });
 
-db.exec('SELECT version()', {log: true});
+db.exec('SELECT version()', { log: true });
 ```
 
 #### #transact(f, ctx) async
 
 ```javascript
 // execute a function with multiple queries under a single transaction
-const ctx = {log: false};
+const ctx = { log: false };
 
-db.transact(async ctx => {
+db.transact(async (ctx) => {
   // ctx = the initial ctx with "client" property added
   // when "client" is set, db will use it instead of creating a new one
   // all execs within a transaction MUST be supplied with ctx for the transaction to work properly
   await db.exec('INSERT INTO users (email) VALUES ($1)', ['test@example.com'], ctx);
   await db.exec('INSERT INTO users (email) VALUES ($1)', ['test@example.com'], ctx);
-  // will be rolled back and no rows will be added if email is UNIQUE  
+  // will be rolled back and no rows will be added if email is UNIQUE
 }, ctx);
 ```
 
@@ -101,11 +99,11 @@ class User extends Model {
 
   // The name of the table where model records are stored MUST be defined
   static table = 'users';
- 
+
   // The function that should be used to generate instance id MUST be defined if DB doesn't assign it
   static generateId = uuid.v4;
 
-  // custom methods MUST accept and pass ctx to DB methods for transactions to work properly  
+  // custom methods MUST accept and pass ctx to DB methods for transactions to work properly
   static customMethod(params, ctx) {
     this.db.exec('...', ctx);
   }
@@ -117,8 +115,8 @@ class User extends Model {
 // extenders MUST NOT be defined as a static property if linkModels utility is used
 User.extenders = {
   // can be an async function
-  // it MUST adjust supplied instances, it does not matter what it returns 
-  randomNumber: instances => instances.forEach(instance => instance.randomNumber = Math.random())
+  // it MUST adjust supplied instances, it does not matter what it returns
+  randomNumber: (instances) => instances.forEach((instance) => (instance.randomNumber = Math.random())),
 };
 ```
 
@@ -132,35 +130,35 @@ The method should be called manually is schema is adjusted without restarting th
 
 ```javascript
 // count instance records, returns an integer
-User.count({where: {email: {$notNull: true}}});
+User.count({ where: { email: { $notNull: true } } });
 ```
 
 #### .find(spec, ctx) async
 
 ```javascript
 // find instance records, returns an array of instances
-User.find({where: {email: {$notNull: true}}});
+User.find({ where: { email: { $notNull: true } } });
 ```
 
 #### .findOne(spec, ctx) async
 
 ```javascript
 // find instance records, returns the first match
-User.findOne({where: {email: {$notNull: true}}});
+User.findOne({ where: { email: { $notNull: true } } });
 ```
 
 #### .update(spec, ctx) async
 
 ```javascript
 // update instance records
-User.update({where: {email: {$notNull: true}}, values: {email: null}});
+User.update({ where: { email: { $notNull: true } }, values: { email: null } });
 ```
 
 #### .delete(spec, ctx) async
 
 ```javascript
 // delete instance records
-User.delete({where: {email: {$notNull: true}}});
+User.delete({ where: { email: { $notNull: true } } });
 ```
 
 #### .extend(instances, properties, ctx) async
@@ -177,7 +175,7 @@ User.extend(users, ['articles', 'comments']);
 ```javascript
 // create an instance, assigning supplied properties
 // if User.generateId is defined, user will have the "id" property set
-const user = new User({firstName: 'User'});
+const user = new User({ firstName: 'User' });
 ```
 
 #### .fromRow(row)
@@ -185,16 +183,16 @@ const user = new User({firstName: 'User'});
 ```javascript
 // the same as the regular constructor, but snake_key property names will be converted to camelCase
 // useful when dealing with raw DB results
-const user = User.fromRow({first_name: 'User'});
+const user = User.fromRow({ first_name: 'User' });
 ```
 
-#### #set(*)
+#### #set(\*)
 
 ```javascript
 // a convenience method to adjust instance properties, supports chaining
 user.set('firstName', 'A').set('lastName', 'B');
 // is identical to
-user.set({firstName: 'A', lastName: 'B'});
+user.set({ firstName: 'A', lastName: 'B' });
 ```
 
 #### #insert(ctx) async
@@ -241,7 +239,6 @@ user.extend(['articles', 'comments']);
 Discovers relationships between supplied models and appends two types of extenders:
 
 1. "isReferenced" - adds a boolean value indicating whether the instance is referenced from somewhere or not.
-2. A set of extenders that allow to append model instances of referenced records. This is done for all properties names
-   which follow the pattern "something_id".
-   "something" becomes the name of the extender and of the property it appends. The value of that property is an
-   instance of the model that uses the table of the referenced record. 
+2. A set of extenders that allow appending model instances of referenced records. This is done for all property names
+   following the pattern "something_id". "something" becomes the name of the extender and of the property it appends.
+   The value of that property is an instance of the model that uses the table of the referenced record.

@@ -1,5 +1,10 @@
 # Changelog
 
+## 9.0.1
+
+- Minor code improvements.
+- Updated dependencies.
+
 ## 9.0.0
 
 - Added TypeScript declaration files to improve DX.

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.3] - 2026-04-29
+### Changed
+- Do not call .extend() in .find() when not needed
+ 
 ## [5.0.2] - 2024-02-28
 ### Changed
 - Include statement and values into exec error
